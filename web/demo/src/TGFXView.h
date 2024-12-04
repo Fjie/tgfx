@@ -18,22 +18,11 @@
 
 #pragma once
 
-#include <emscripten/bind.h>
-#include "drawers/Drawer.h"
-#include "tgfx/opengl/webgl/WebGLWindow.h"
+#include "TGFXBaseView.h"
 
 namespace hello2d {
-class TGFXView {
+class TGFXView : public TGFXBaseView {
  public:
-  TGFXView(std::string canvasID, emscripten::val nativeImage);
-
-  void updateSize(float devicePixelRatio);
-
-  void draw(int drawIndex);
-
- private:
-  std::string canvasID;
-  std::shared_ptr<tgfx::Window> window;
-  std::shared_ptr<drawers::AppHost> appHost;
+  TGFXView(const std::string& canvasID);
 };
 }  // namespace hello2d

@@ -17,10 +17,10 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "base/Drawers.h"
-#include "tgfx/gpu/Surface.h"
+#include "tgfx/core/Surface.h"
 
 namespace drawers {
-void ImageWithShadow::onDraw(tgfx::Canvas* canvas, const drawers::AppHost* host) const {
+void ImageWithShadow::onDraw(tgfx::Canvas* canvas, const drawers::AppHost* host) {
   auto scale = host->density();
   auto width = host->width();
   auto height = host->height();

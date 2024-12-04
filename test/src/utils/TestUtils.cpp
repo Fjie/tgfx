@@ -20,9 +20,9 @@
 #include <dirent.h>
 #include <fstream>
 #include "ProjectPath.h"
-#include "tgfx/opengl/GLFunctions.h"
-#include "tgfx/utils/Buffer.h"
-#include "tgfx/utils/Stream.h"
+#include "tgfx/core/Buffer.h"
+#include "tgfx/core/Stream.h"
+#include "tgfx/gpu/opengl/GLFunctions.h"
 
 namespace tgfx {
 static const std::string OUT_ROOT = ProjectPath::Absolute("test/out/");
@@ -48,6 +48,10 @@ bool CreateGLTexture(Context* context, int width, int height, GLTextureInfo* tex
 
 std::shared_ptr<ImageCodec> MakeImageCodec(const std::string& path) {
   return ImageCodec::MakeFrom(ProjectPath::Absolute(path));
+}
+
+std::shared_ptr<ImageCodec> MakeNativeCodec(const std::string& path) {
+  return ImageCodec::MakeNativeCodec(ProjectPath::Absolute(path));
 }
 
 std::shared_ptr<Image> MakeImage(const std::string& path) {

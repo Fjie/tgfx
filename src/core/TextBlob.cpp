@@ -17,17 +17,35 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "tgfx/core/TextBlob.h"
-#include "core/GlyphRun.h"
-#include "core/SimpleTextBlob.h"
-#include "utils/SimpleTextShaper.h"
+#include "core/GlyphRunList.h"
+#include "tgfx/core/UTF.h"
 
 namespace tgfx {
-std::shared_ptr<TextBlob> TextBlob::MakeFrom(const std::string& text, const tgfx::Font& font) {
-  auto glyphRun = SimpleTextShaper::Shape(text, font);
-  if (glyphRun.empty()) {
+std::shared_ptr<TextBlob> TextBlob::MakeFrom(const std::string& text, const Font& font) {
+  const char* textStart = text.data();
+  const char* textStop = textStart + text.size();
+  GlyphRun glyphRun = {};
+  glyphRun.font = font;
+  // Use half the font size as width for spaces
+  auto emptyAdvance = font.getSize() / 2.0f;
+  float xOffset = 0;
+  while (textStart < textStop) {
+    auto unichar = UTF::NextUTF8(&textStart, textStop);
+    auto glyphID = font.getGlyphID(unichar);
+    if (glyphID > 0) {
+      glyphRun.glyphs.push_back(glyphID);
+      glyphRun.positions.push_back(Point::Make(xOffset, 0.0f));
+      auto advance = font.getAdvance(glyphID);
+      xOffset += advance;
+    } else {
+      xOffset += emptyAdvance;
+    }
+  }
+  if (glyphRun.glyphs.empty()) {
     return nullptr;
   }
-  return std::make_shared<SimpleTextBlob>(std::move(glyphRun));
+  auto glyphRunList = std::make_shared<GlyphRunList>(std::move(glyphRun));
+  return std::shared_ptr<TextBlob>(new TextBlob({glyphRunList}));
 }
 
 std::shared_ptr<TextBlob> TextBlob::MakeFrom(const GlyphID glyphIDs[], const Point positions[],
@@ -36,15 +54,70 @@ std::shared_ptr<TextBlob> TextBlob::MakeFrom(const GlyphID glyphIDs[], const Poi
     return nullptr;
   }
   GlyphRun glyphRun(font, {glyphIDs, glyphIDs + glyphCount}, {positions, positions + glyphCount});
-  return std::make_shared<SimpleTextBlob>(std::move(glyphRun));
+  auto glyphRunList = std::make_shared<GlyphRunList>(std::move(glyphRun));
+  return std::shared_ptr<TextBlob>(new TextBlob({glyphRunList}));
 }
 
-Rect TextBlob::getBounds(const Matrix& matrix) const {
+std::shared_ptr<TextBlob> TextBlob::MakeFrom(GlyphRun glyphRun) {
+  if (glyphRun.glyphs.size() != glyphRun.positions.size()) {
+    return nullptr;
+  }
+  if (glyphRun.glyphs.empty()) {
+    return nullptr;
+  }
+  auto glyphRunList = std::make_shared<GlyphRunList>(std::move(glyphRun));
+  return std::shared_ptr<TextBlob>(new TextBlob({glyphRunList}));
+}
+
+enum class FontType { Path, Color, Other };
+
+static FontType GetFontType(const Font& font) {
+  if (font.hasColor()) {
+    return FontType::Color;
+  }
+  if (font.hasOutlines()) {
+    return FontType::Path;
+  }
+  return FontType::Other;
+}
+
+std::shared_ptr<TextBlob> TextBlob::MakeFrom(std::vector<GlyphRun> glyphRuns) {
+  if (glyphRuns.empty()) {
+    return nullptr;
+  }
+  if (glyphRuns.size() == 1) {
+    return MakeFrom(std::move(glyphRuns[0]));
+  }
+  std::vector<std::shared_ptr<GlyphRunList>> runLists;
+  std::vector<GlyphRun> currentRuns;
+  FontType fontType = GetFontType(glyphRuns[0].font);
+  for (auto& run : glyphRuns) {
+    if (run.glyphs.size() != run.positions.size()) {
+      return nullptr;
+    }
+    if (run.glyphs.empty()) {
+      continue;
+    }
+    auto currentFontType = GetFontType(run.font);
+    if (currentFontType != fontType) {
+      if (!currentRuns.empty()) {
+        runLists.push_back(std::make_shared<GlyphRunList>(std::move(currentRuns)));
+        currentRuns = {};
+      }
+      fontType = currentFontType;
+    }
+    currentRuns.push_back(std::move(run));
+  }
+  if (!currentRuns.empty()) {
+    runLists.push_back(std::make_shared<GlyphRunList>(std::move(currentRuns)));
+  }
+  return std::shared_ptr<TextBlob>(new TextBlob(std::move(runLists)));
+}
+
+Rect TextBlob::getBounds(float resolutionScale) const {
   auto bounds = Rect::MakeEmpty();
-  auto runCount = glyphRunCount();
-  for (size_t i = 0; i < runCount; ++i) {
-    auto glyphRun = getGlyphRun(i);
-    bounds.join(glyphRun->getBounds(matrix));
+  for (auto& runList : glyphRunLists) {
+    bounds.join(runList->getBounds(resolutionScale));
   }
   return bounds;
 }

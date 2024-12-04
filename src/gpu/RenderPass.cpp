@@ -19,15 +19,13 @@
 #include "RenderPass.h"
 
 namespace tgfx {
-bool RenderPass::begin(std::shared_ptr<RenderTargetProxy> renderTargetProxy) {
-  if (renderTargetProxy == nullptr) {
+bool RenderPass::begin(std::shared_ptr<RenderTarget> renderTarget,
+                       std::shared_ptr<Texture> renderTexture) {
+  if (renderTarget == nullptr) {
     return false;
   }
-  _renderTarget = renderTargetProxy->getRenderTarget();
-  if (_renderTarget == nullptr) {
-    return false;
-  }
-  _renderTargetTexture = renderTargetProxy->getTexture();
+  _renderTarget = std::move(renderTarget);
+  _renderTargetTexture = std::move(renderTexture);
   drawPipelineStatus = DrawPipelineStatus::NotConfigured;
   return true;
 }
@@ -44,9 +42,10 @@ void RenderPass::resetActiveBuffers() {
   _vertexBuffer = nullptr;
 }
 
-void RenderPass::bindProgramAndScissorClip(const ProgramInfo* programInfo, const Rect& drawBounds) {
+void RenderPass::bindProgramAndScissorClip(const ProgramInfo* programInfo,
+                                           const Rect& scissorRect) {
   resetActiveBuffers();
-  if (!onBindProgramAndScissorClip(programInfo, drawBounds)) {
+  if (!onBindProgramAndScissorClip(programInfo, scissorRect)) {
     drawPipelineStatus = DrawPipelineStatus::FailedToBind;
     return;
   }
@@ -58,7 +57,20 @@ void RenderPass::bindBuffers(std::shared_ptr<GpuBuffer> indexBuffer,
   if (drawPipelineStatus != DrawPipelineStatus::Ok) {
     return;
   }
-  onBindBuffers(std::move(indexBuffer), std::move(vertexBuffer));
+  _indexBuffer = std::move(indexBuffer);
+  _vertexBuffer = std::move(vertexBuffer);
+  _vertexData = nullptr;
+}
+
+void RenderPass::bindBuffers(std::shared_ptr<GpuBuffer> indexBuffer,
+                             std::shared_ptr<Data> vertexData) {
+  if (drawPipelineStatus != DrawPipelineStatus::Ok) {
+    return;
+  }
+  _indexBuffer = std::move(indexBuffer);
+  _vertexBuffer = nullptr;
+  _vertexData = std::move(vertexData);
+  ;
 }
 
 void RenderPass::draw(PrimitiveType primitiveType, size_t baseVertex, size_t vertexCount) {

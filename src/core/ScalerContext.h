@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "tgfx/core/FontMetrics.h"
 #include "tgfx/core/Image.h"
 #include "tgfx/core/Path.h"
 #include "tgfx/core/Typeface.h"
@@ -39,6 +40,10 @@ class ScalerContext {
 
   bool hasColor() const {
     return typeface ? typeface->hasColor() : false;
+  }
+
+  bool hasOutlines() const {
+    return typeface ? typeface->hasOutlines() : false;
   }
 
   float getSize() const {
@@ -68,5 +73,7 @@ class ScalerContext {
 
  private:
   static std::shared_ptr<ScalerContext> CreateNew(std::shared_ptr<Typeface> typeface, float size);
+
+  friend class Font;
 };
 }  // namespace tgfx

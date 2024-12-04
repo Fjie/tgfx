@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "tgfx/core/Path.h"
+
 namespace tgfx {
 /**
  * LineCap draws at the beginning and end of an open path contour.
@@ -74,9 +76,25 @@ class Stroke {
   }
 
   /**
+   * Applies the stroke options to the given path.
+   * @param path The path to which the stroke options will be applied.
+   * @param resolutionScale The intended resolution for the output. The default value is 1.0.
+   * Higher values (res > 1) mean the result should be more precise, as it will be zoomed up and
+   * small errors will be magnified. Lower values (0 < res < 1) mean the result can be less precise,
+   * as it will be zoomed down and small errors may be invisible.
+   * @return false if the stroke cannot be applied, leaving the path unchanged.
+   */
+  bool applyToPath(Path* path, float resolutionScale = 1.0f) const;
+
+  /**
+   * Applies the stroke options to the given bounds.
+   */
+  void applyToBounds(Rect* bounds) const;
+
+  /**
    * The thickness of the pen used to outline the paths or glyphs.
    */
-  float width = 0.0f;
+  float width = 1.0f;
 
   /**
    *  The geometry drawn at the beginning and end of strokes.

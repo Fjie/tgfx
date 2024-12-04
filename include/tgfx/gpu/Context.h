@@ -32,6 +32,10 @@ class Gpu;
 class ResourceProvider;
 class ProxyProvider;
 
+/**
+ * Context is the main interface to the GPU. It is used to create and manage GPU resources, and to
+ * issue drawing commands. Contexts are created by Devices.
+ */
 class Context {
  public:
   virtual ~Context();
@@ -41,6 +45,13 @@ class Context {
    */
   Device* device() const {
     return _device;
+  }
+
+  /**
+   * Returns the unique ID of the Context.
+   */
+  uint32_t uniqueID() const {
+    return _device->uniqueID();
   }
 
   /**
@@ -110,10 +121,10 @@ class Context {
 
   /**
    * Inserts a GPU semaphore that the current GPU-backed API must wait on before executing any more
-   * commands on the GPU for this surface. Surface will take ownership of the underlying semaphore
-   * and delete it once it has been signaled and waited on. If this call returns false, then the
-   * GPU back-end will not wait on the passed semaphore, and the client will still own the
-   * semaphore. Returns true if GPU is waiting on the semaphore.
+   * commands on the GPU. The context will take ownership of the underlying semaphore and delete it
+   * once it has been signaled and waited on. If this call returns false, then the GPU back-end will
+   * not wait on the passed semaphore, and the client will still own the semaphore. Returns true if
+   * GPU is waiting on the semaphore.
    */
   bool wait(const BackendSemaphore& waitSemaphore);
 

@@ -17,12 +17,12 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <vector>
-#include "images/BufferImage.h"
+#include "core/images/BufferImage.h"
+#include "core/vectors/freetype/FTMask.h"
 #include "tgfx/core/Mask.h"
-#include "tgfx/gpu/Surface.h"
-#include "tgfx/opengl/GLDevice.h"
+#include "tgfx/core/Surface.h"
+#include "tgfx/gpu/opengl/GLDevice.h"
 #include "utils/TestUtils.h"
-#include "vectors/freetype/FTMask.h"
 
 namespace tgfx {
 TGFX_TEST(MaskTest, Rasterize) {
@@ -39,9 +39,8 @@ TGFX_TEST(MaskTest, Rasterize) {
   auto maskBuffer = std::static_pointer_cast<PixelBuffer>(mask->makeBuffer());
   EXPECT_TRUE(Baseline::Compare(maskBuffer, "MaskTest/rasterize_path"));
 
-  auto device = DevicePool::Make();
-  ASSERT_TRUE(device != nullptr);
-  auto context = device->lockContext();
+  ContextScope scope;
+  auto context = scope.getContext();
   ASSERT_TRUE(context != nullptr);
   auto image = Image::MakeFrom(mask->makeBuffer());
   ASSERT_TRUE(image != nullptr);
@@ -54,7 +53,7 @@ TGFX_TEST(MaskTest, Rasterize) {
   Pixmap pixmap(bitmap);
   pixmap.clear();
   auto result = surface->readPixels(pixmap.info(), pixmap.writablePixels());
-  ASSERT_TRUE(result);
+  EXPECT_TRUE(result);
   EXPECT_TRUE(Baseline::Compare(pixmap, "MaskTest/rasterize_path_texture"));
 
   auto typeface =
@@ -76,6 +75,5 @@ TGFX_TEST(MaskTest, Rasterize) {
   canvas = surface->getCanvas();
   canvas->drawImage(glyphImage);
   EXPECT_TRUE(Baseline::Compare(surface, "MaskTest/rasterize_emoji"));
-  device->unlock();
 }
 }  // namespace tgfx

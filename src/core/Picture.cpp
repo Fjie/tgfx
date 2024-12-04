@@ -20,9 +20,9 @@
 #include "core/MeasureContext.h"
 #include "core/Records.h"
 #include "core/TransformContext.h"
+#include "core/utils/Log.h"
 #include "tgfx/core/Canvas.h"
-#include "tgfx/gpu/Surface.h"
-#include "utils/Log.h"
+#include "tgfx/core/Surface.h"
 
 namespace tgfx {
 Picture::Picture(std::vector<Record*> records) : records(std::move(records)) {
@@ -34,9 +34,9 @@ Picture::~Picture() {
   }
 }
 
-Rect Picture::getBounds(const Matrix& matrix) const {
+Rect Picture::getBounds(const Matrix* matrix) const {
   MeasureContext context = {};
-  MCState state(matrix);
+  MCState state(matrix ? *matrix : Matrix::I());
   playback(&context, state);
   return context.getBounds();
 }
@@ -68,5 +68,4 @@ void Picture::playback(DrawContext* drawContext, const MCState& state) const {
     record->playback(drawContext);
   }
 }
-
 }  // namespace tgfx

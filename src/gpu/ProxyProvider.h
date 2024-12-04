@@ -21,9 +21,11 @@
 #include "core/DataProvider.h"
 #include "core/ImageDecoder.h"
 #include "gpu/proxies/GpuBufferProxy.h"
+#include "gpu/proxies/GpuShapeProxy.h"
 #include "gpu/proxies/RenderTargetProxy.h"
 #include "gpu/proxies/TextureProxy.h"
 #include "tgfx/core/ImageGenerator.h"
+#include "tgfx/core/Shape.h"
 
 namespace tgfx {
 /**
@@ -62,6 +64,13 @@ class ProxyProvider {
                                                        BufferType bufferType,
                                                        uint32_t renderFlags = 0);
 
+  /**
+   * Creates a GpuShapeProxy for the given Shape. The shape will be released after being uploaded to
+   * the GPU.
+   */
+  std::shared_ptr<GpuShapeProxy> createGpuShapeProxy(std::shared_ptr<Shape> shape, bool antiAlias,
+                                                     uint32_t renderFlags = 0);
+
   /*
    * Creates a TextureProxy for the given ImageBuffer. The image buffer will be released after being
    * uploaded to the GPU.
@@ -97,6 +106,11 @@ class ProxyProvider {
                                                    uint32_t renderFlags = 0);
 
   /**
+   * Creates a flattened TextureProxy for the given TextureProxy.
+   */
+  std::shared_ptr<TextureProxy> flattenTextureProxy(std::shared_ptr<TextureProxy> source);
+
+  /**
    * Creates a TextureProxy for the provided BackendTexture. If adopted is true, the backend
    * texture will be destroyed at a later point after the proxy is released.
    */
@@ -105,22 +119,18 @@ class ProxyProvider {
                                                    bool adopted = false);
   /**
    * Creates an empty RenderTargetProxy with specified width, height, format, sample count,
-   * mipmap state and origin.
+   * mipmap state and origin. If clearAll is true, the entire render target will be cleared
+   * to transparent black.
    */
   std::shared_ptr<RenderTargetProxy> createRenderTargetProxy(
-      std::shared_ptr<TextureProxy> textureProxy, PixelFormat format, int sampleCount = 1);
+      std::shared_ptr<TextureProxy> textureProxy, PixelFormat format, int sampleCount = 1,
+      bool clearAll = false);
 
   /**
    * Creates a render target proxy for the given BackendRenderTarget.
    */
   std::shared_ptr<RenderTargetProxy> wrapBackendRenderTarget(
       const BackendRenderTarget& backendRenderTarget, ImageOrigin origin = ImageOrigin::TopLeft);
-
-  /**
-   * Changes the key of the given proxy to the new key. So that the proxy can be found with the new
-   * key. This does not change the key of the resource that the proxy wraps.
-   */
-  void changeProxyKey(std::shared_ptr<ResourceProxy> proxy, const UniqueKey& newKey);
 
   /*
    * Purges all unreferenced proxies.
@@ -129,7 +139,7 @@ class ProxyProvider {
 
  private:
   Context* context = nullptr;
-  UniqueKeyMap<std::weak_ptr<ResourceProxy>> proxyMap = {};
+  ResourceKeyMap<std::weak_ptr<ResourceProxy>> proxyMap = {};
 
   static UniqueKey GetProxyKey(const UniqueKey& uniqueKey, uint32_t renderFlags);
 

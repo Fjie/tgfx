@@ -17,8 +17,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "DrawOp.h"
+#include "core/utils/Log.h"
 #include "gpu/Gpu.h"
-#include "utils/Log.h"
 
 namespace tgfx {
 static DstTextureInfo CreateDstTextureInfo(RenderPass* renderPass, Rect dstRect) {
@@ -70,7 +70,8 @@ std::unique_ptr<Pipeline> DrawOp::createPipeline(RenderPass* renderPass,
   auto format = renderPass->renderTarget()->format();
   const auto& swizzle = caps->getWriteSwizzle(format);
   return std::make_unique<Pipeline>(std::move(gp), std::move(fragmentProcessors),
-                                    numColorProcessors, blendMode, dstTextureInfo, &swizzle);
+                                    numColorProcessors, blendMode, std::move(dstTextureInfo),
+                                    &swizzle);
 }
 
 static bool CompareFragments(const std::vector<std::unique_ptr<FragmentProcessor>>& frags1,

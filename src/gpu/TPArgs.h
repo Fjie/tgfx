@@ -29,9 +29,8 @@ class TPArgs {
  public:
   TPArgs() = default;
 
-  TPArgs(Context* context, uint32_t renderFlags, bool mipmapped, UniqueKey uniqueKey = {})
-      : context(context), renderFlags(renderFlags), mipmapped(mipmapped),
-        uniqueKey(std::move(uniqueKey)) {
+  TPArgs(Context* context, uint32_t renderFlags, bool mipmapped)
+      : context(context), renderFlags(renderFlags), mipmapped(mipmapped) {
   }
 
   /**
@@ -49,11 +48,5 @@ class TPArgs {
    * image already has preset mipmaps.
    */
   bool mipmapped = false;
-
-  /**
-   * The unique key assigned to the texture proxy. This may be ignored if the associated image
-   * already has a unique key.
-   */
-  UniqueKey uniqueKey = {};
 };
 }  // namespace tgfx

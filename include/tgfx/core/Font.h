@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "tgfx/core/FontMetrics.h"
 #include "tgfx/core/Image.h"
 #include "tgfx/core/Path.h"
 #include "tgfx/core/Typeface.h"
@@ -49,9 +50,14 @@ class Font {
   std::shared_ptr<Typeface> getTypeface() const;
 
   /**
-   * Returns true if the font has color.
+   * Returns true if the font has color glyphs, for example, color emojis.
    */
   bool hasColor() const;
+
+  /**
+   * Returns true if the font has outline glyphs, meaning it can generate paths.
+   */
+  bool hasOutlines() const;
 
   /**
    * Sets a new Typeface to this Font.
@@ -146,6 +152,18 @@ class Font {
    * method.
    */
   std::shared_ptr<Image> getImage(GlyphID glyphID, Matrix* matrix) const;
+
+  /**
+   * Compares two fonts for equality.
+   */
+  bool operator==(const Font& font) const;
+
+  /**
+   * Compares two fonts for inequality.
+   */
+  bool operator!=(const Font& font) const {
+    return !(*this == font);
+  }
 
  private:
   std::shared_ptr<ScalerContext> scalerContext = nullptr;

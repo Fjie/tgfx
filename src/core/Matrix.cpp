@@ -18,7 +18,7 @@
 
 #include "tgfx/core/Matrix.h"
 #include <cfloat>
-#include "utils/MathExtra.h"
+#include "core/utils/MathExtra.h"
 
 namespace tgfx {
 
@@ -77,7 +77,7 @@ void Matrix::setTranslate(float tx, float ty) {
   }
 }
 
-static inline float sdot(float a, float b, float c, float d) {
+inline float sdot(float a, float b, float c, float d) {
   return a * b + c * d;
 }
 
@@ -364,9 +364,8 @@ bool Matrix::rectStaysRect() const {
   float m11 = values[SCALE_Y];
   if (m01 != 0 || m10 != 0) {
     return m00 == 0 && m11 == 0 && m10 != 0 && m01 != 0;
-  } else {
-    return m00 != 0 && m11 != 0;
   }
+  return m00 != 0 && m11 != 0;
 }
 
 void Matrix::mapRect(Rect* dst, const Rect& src) const {
@@ -393,20 +392,6 @@ float Matrix::getMaxScale() const {
     return results[1];
   }
   return -1.0f;
-}
-
-bool Matrix::hasNonIdentityScale() const {
-  double a = values[SCALE_X];
-  double b = values[SKEW_Y];
-  if (sqrt(a * a + b * b) != 1.0) {
-    return true;
-  }
-  double c = values[SKEW_X];
-  double d = values[SCALE_Y];
-  if (sqrt(c * c + d * d) != 1.0) {
-    return true;
-  }
-  return false;
 }
 
 Point Matrix::getAxisScales() const {
@@ -456,6 +441,24 @@ bool Matrix::getMinMaxScaleFactors(float* results) const {
   }
   results[1] = sqrtf(results[1]);
   return true;
+}
+
+bool Matrix::hasNonIdentityScale() const {
+  double a = values[SCALE_X];
+  double b = values[SKEW_Y];
+  if (sqrt(a * a + b * b) != 1.0) {
+    return true;
+  }
+  double c = values[SKEW_X];
+  double d = values[SCALE_Y];
+  if (sqrt(c * c + d * d) != 1.0) {
+    return true;
+  }
+  return false;
+}
+
+bool Matrix::isTranslate() const {
+  return values[SCALE_X] == 1 && values[SCALE_Y] == 1 && values[SKEW_X] == 0 && values[SKEW_Y] == 0;
 }
 
 bool Matrix::isFinite() const {

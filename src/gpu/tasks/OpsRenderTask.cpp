@@ -17,6 +17,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "OpsRenderTask.h"
+#include "core/utils/Profiling.h"
 #include "gpu/Gpu.h"
 #include "gpu/RenderPass.h"
 
@@ -29,17 +30,19 @@ void OpsRenderTask::addOp(std::unique_ptr<Op> op) {
 }
 
 void OpsRenderTask::prepare(Context* context) {
-  renderPass = context->gpu()->getRenderPass();
+  TRACE_EVENT_COLOR(TRACY_COLOR_GREEN);
   for (auto& op : ops) {
-    op->prepare(context);
+    op->prepare(context, renderFlags);
   }
 }
 
 bool OpsRenderTask::execute(Gpu* gpu) {
-  if (ops.empty()) {
+  TRACE_EVENT;
+  if (ops.empty() || renderTargetProxy == nullptr) {
     return false;
   }
-  if (!renderPass->begin(renderTargetProxy)) {
+  auto renderPass = gpu->getRenderPass();
+  if (!renderPass->begin(renderTargetProxy->getRenderTarget(), renderTargetProxy->getTexture())) {
     LOGE("OpsTask::execute() Failed to initialize the render pass!");
     return false;
   }
@@ -47,7 +50,6 @@ bool OpsRenderTask::execute(Gpu* gpu) {
   for (auto& op : tempOps) {
     op->execute(renderPass.get());
   }
-  gpu->submit(renderPass.get());
   renderPass->end();
   return true;
 }

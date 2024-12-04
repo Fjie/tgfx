@@ -21,11 +21,12 @@
 #include "base/TGFXTest.h"
 #include "core/PixelBuffer.h"
 #include "gtest/gtest.h"
+#include "tgfx/core/Clock.h"
 #include "tgfx/core/Image.h"
 #include "tgfx/core/ImageCodec.h"
 #include "tgfx/core/Pixmap.h"
-#include "tgfx/utils/Clock.h"
 #include "utils/Baseline.h"
+#include "utils/ContextScope.h"
 #include "utils/DevicePool.h"
 #include "utils/ProjectPath.h"
 
@@ -34,6 +35,8 @@ namespace tgfx {
 bool CreateGLTexture(Context* context, int width, int height, GLTextureInfo* texture);
 
 std::shared_ptr<ImageCodec> MakeImageCodec(const std::string& path);
+
+std::shared_ptr<ImageCodec> MakeNativeCodec(const std::string& path);
 
 std::shared_ptr<Image> MakeImage(const std::string& path);
 

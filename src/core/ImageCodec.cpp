@@ -18,58 +18,59 @@
 
 #include "tgfx/core/ImageCodec.h"
 #include "core/PixelBuffer.h"
+#include "core/utils/Profiling.h"
+#include "core/utils/USE.h"
+#include "tgfx/core/Buffer.h"
 #include "tgfx/core/ImageInfo.h"
 #include "tgfx/core/Pixmap.h"
-#include "tgfx/utils/Buffer.h"
-#include "tgfx/utils/Stream.h"
-#include "utils/USE.h"
+#include "tgfx/core/Stream.h"
 
 #if defined(TGFX_USE_WEBP_DECODE) || defined(TGFX_USE_WEBP_ENCODE)
-#include "codecs/webp/WebpCodec.h"
+#include "core/codecs/webp/WebpCodec.h"
 #endif
 
 #if defined(TGFX_USE_PNG_DECODE) || defined(TGFX_USE_PNG_ENCODE)
 
-#include "codecs/png/PngCodec.h"
+#include "core/codecs/png/PngCodec.h"
 
 #endif
 
 #if defined(TGFX_USE_JPEG_DECODE) || defined(TGFX_USE_JPEG_ENCODE)
-#include "codecs/jpeg/JpegCodec.h"
+#include "core/codecs/jpeg/JpegCodec.h"
 #endif
 
 namespace tgfx {
 std::shared_ptr<ImageCodec> ImageCodec::MakeFrom(const std::string& filePath) {
+  TRACE_EVENT;
   std::shared_ptr<ImageCodec> codec = nullptr;
   auto stream = Stream::MakeFromFile(filePath);
-  if (stream == nullptr || stream->size() <= 14) {
-    return nullptr;
-  }
-  Buffer buffer(14);
-  if (stream->read(buffer.data(), 14) < 14) {
-    return nullptr;
-  }
-  auto data = buffer.release();
+  if (stream && stream->size() > 14) {
+    Buffer buffer(14);
+    if (stream->read(buffer.data(), 14) == 14) {
+      auto data = buffer.release();
 #ifdef TGFX_USE_WEBP_DECODE
-  if (WebpCodec::IsWebp(data)) {
-    codec = WebpCodec::MakeFrom(filePath);
-  }
+      if (WebpCodec::IsWebp(data)) {
+        codec = WebpCodec::MakeFrom(filePath);
+      }
 #endif
 
 #ifdef TGFX_USE_PNG_DECODE
-  if (PngCodec::IsPng(data)) {
-    codec = PngCodec::MakeFrom(filePath);
-  }
+      if (codec == nullptr && PngCodec::IsPng(data)) {
+        codec = PngCodec::MakeFrom(filePath);
+      }
 #endif
 
 #ifdef TGFX_USE_JPEG_DECODE
-  if (JpegCodec::IsJpeg(data)) {
-    codec = JpegCodec::MakeFrom(filePath);
-  }
+      if (codec == nullptr && JpegCodec::IsJpeg(data)) {
+        codec = JpegCodec::MakeFrom(filePath);
+      }
 #endif
+    }
+  }
   if (codec == nullptr) {
     codec = MakeNativeCodec(filePath);
   }
+
   if (codec && !ImageInfo::IsValidSize(codec->width(), codec->height())) {
     codec = nullptr;
   }
@@ -135,6 +136,7 @@ std::shared_ptr<Data> ImageCodec::Encode(const Pixmap& pixmap, EncodedFormat for
 }
 
 std::shared_ptr<ImageBuffer> ImageCodec::onMakeBuffer(bool tryHardware) const {
+  TRACE_EVENT;
   auto pixelBuffer = PixelBuffer::Make(width(), height(), isAlphaOnly(), tryHardware);
   if (pixelBuffer == nullptr) {
     return nullptr;

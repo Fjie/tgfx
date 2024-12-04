@@ -7,12 +7,12 @@
     "common": [
       {
         "url": "${PAG_GROUP}/vendor_tools.git",
-        "commit": "ce1f4d55330727eb3f02595999c1a1b4fab23ebf",
+        "commit": "b3125b9cf13bcc70e63212de1d0ed95e7beaa2a9",
         "dir": "third_party/vendor_tools"
       },
       {
         "url": "${PAG_GROUP}/pathkit.git",
-        "commit": "a03c6d8bc779bca102587d912b72d8d972af8324",
+        "commit": "3a2d34b8e1465f264067f4e8c535c0fecfb98f9c",
         "dir": "third_party/pathkit"
       },
       {
@@ -27,7 +27,7 @@
       },
       {
         "url": "https://github.com/glennrp/libpng.git",
-        "commit": "a40189cf881e9f0db80511c382292a5604c3c3d1",
+        "commit": "f135775ad4e5d4408d2e12ffcc71bb36e6b48551",
         "dir": "third_party/libpng"
       },
       {
@@ -59,6 +59,16 @@
         "url": "https://github.com/nlohmann/json.git",
         "commit": "fec56a1a16c6e1c1b1f4e116a20e79398282626c",
         "dir": "third_party/json"
+      },
+      {
+        "url": "https://github.com/libexpat/libexpat.git",
+        "commit": "88b3ed553d8ad335559254863a33360d55b9f1d6",
+        "dir": "third_party/expat"
+      },
+      {
+        "url": "https://github.com/libpag/tracy.git",
+        "commit": "a1f92cc0b00799e3dfe3eee6654bd4779094febf",
+        "dir": "third_party/tracy"
       }
     ]
   },

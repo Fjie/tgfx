@@ -16,17 +16,16 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "opengl/GLCaps.h"
-#include "opengl/GLUtil.h"
-#include "tgfx/opengl/GLDevice.h"
+#include "gpu/opengl/GLCaps.h"
+#include "gpu/opengl/GLUtil.h"
+#include "tgfx/gpu/opengl/GLDevice.h"
 #include "utils/TestUtils.h"
 
 namespace tgfx {
 
 TGFX_TEST(SurfaceTest, ImageSnapshot) {
-  auto device = DevicePool::Make();
-  ASSERT_TRUE(device != nullptr);
-  auto context = device->lockContext();
+  ContextScope scope;
+  auto context = scope.getContext();
   ASSERT_TRUE(context != nullptr);
   GLTextureInfo textureInfo;
   auto width = 200;
@@ -75,6 +74,5 @@ TGFX_TEST(SurfaceTest, ImageSnapshot) {
 
   auto gl = GLFunctions::Get(context);
   gl->deleteTextures(1, &textureInfo.id);
-  device->unlock();
 }
 }  // namespace tgfx

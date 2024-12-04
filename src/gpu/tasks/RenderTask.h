@@ -18,9 +18,9 @@
 
 #pragma once
 
+#include "core/utils/Log.h"
 #include "gpu/Gpu.h"
 #include "gpu/proxies/RenderTargetProxy.h"
-#include "utils/Log.h"
 
 namespace tgfx {
 class RenderTask {
@@ -32,22 +32,11 @@ class RenderTask {
 
   virtual bool execute(Gpu* gpu) = 0;
 
-  void makeClosed() {
-    closed = true;
-  }
-
-  bool isClosed() const {
-    return closed;
-  }
-
  protected:
   explicit RenderTask(std::shared_ptr<RenderTargetProxy> proxy)
       : renderTargetProxy(std::move(proxy)) {
   }
 
   std::shared_ptr<RenderTargetProxy> renderTargetProxy = nullptr;
-
- private:
-  bool closed = false;
 };
 }  // namespace tgfx

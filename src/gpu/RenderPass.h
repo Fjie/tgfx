@@ -18,15 +18,12 @@
 
 #pragma once
 
-#include <optional>
-#include "Blend.h"
 #include "Program.h"
 #include "gpu/ProgramInfo.h"
 #include "gpu/RenderTarget.h"
 #include "gpu/processors/GeometryProcessor.h"
 #include "gpu/proxies/GpuBufferProxy.h"
 #include "gpu/proxies/RenderTargetProxy.h"
-#include "tgfx/core/BlendMode.h"
 #include "tgfx/core/Color.h"
 #include "tgfx/gpu/Context.h"
 
@@ -55,10 +52,11 @@ class RenderPass {
     return _renderTargetTexture;
   }
 
-  bool begin(std::shared_ptr<RenderTargetProxy> renderTargetProxy);
+  bool begin(std::shared_ptr<RenderTarget> renderTarget, std::shared_ptr<Texture> renderTexture);
   void end();
-  void bindProgramAndScissorClip(const ProgramInfo* programInfo, const Rect& drawBounds);
+  void bindProgramAndScissorClip(const ProgramInfo* programInfo, const Rect& scissorRect);
   void bindBuffers(std::shared_ptr<GpuBuffer> indexBuffer, std::shared_ptr<GpuBuffer> vertexBuffer);
+  void bindBuffers(std::shared_ptr<GpuBuffer> indexBuffer, std::shared_ptr<Data> vertexData);
   void draw(PrimitiveType primitiveType, size_t baseVertex, size_t vertexCount);
   void drawIndexed(PrimitiveType primitiveType, size_t baseIndex, size_t indexCount);
   void clear(const Rect& scissor, Color color);
@@ -69,8 +67,6 @@ class RenderPass {
 
   virtual bool onBindProgramAndScissorClip(const ProgramInfo* programInfo,
                                            const Rect& drawBounds) = 0;
-  virtual void onBindBuffers(std::shared_ptr<GpuBuffer> indexBuffer,
-                             std::shared_ptr<GpuBuffer> vertexBuffer) = 0;
   virtual void onDraw(PrimitiveType primitiveType, size_t baseVertex, size_t vertexCount) = 0;
   virtual void onDrawIndexed(PrimitiveType primitiveType, size_t baseIndex, size_t indexCount) = 0;
   virtual void onClear(const Rect& scissor, Color color) = 0;
@@ -79,8 +75,9 @@ class RenderPass {
   std::shared_ptr<RenderTarget> _renderTarget = nullptr;
   std::shared_ptr<Texture> _renderTargetTexture = nullptr;
   Program* _program = nullptr;
-  std::shared_ptr<GpuBuffer> _indexBuffer;
-  std::shared_ptr<GpuBuffer> _vertexBuffer;
+  std::shared_ptr<GpuBuffer> _indexBuffer = nullptr;
+  std::shared_ptr<GpuBuffer> _vertexBuffer = nullptr;
+  std::shared_ptr<Data> _vertexData = nullptr;
 
  private:
   enum class DrawPipelineStatus { Ok = 0, NotConfigured, FailedToBind };

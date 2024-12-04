@@ -18,7 +18,7 @@
 
 #include "tgfx/core/Path.h"
 #include "core/PathRef.h"
-#include "utils/MathExtra.h"
+#include "core/utils/MathExtra.h"
 
 namespace tgfx {
 using namespace pk;
@@ -27,7 +27,7 @@ static SkPathDirection ToSkDirection(bool reversed) {
   return reversed ? SkPathDirection::kCCW : SkPathDirection::kCW;
 }
 
-#define DistanceToControlPoint(angleStep) (4 * tanf((angleStep)*0.25f) / 3)
+#define DistanceToControlPoint(radStep) (4 * tanf((radStep)*0.25f) / 3)
 
 class PointIterator {
  public:
@@ -215,6 +215,141 @@ void Path::cubicTo(const Point& control1, const Point& control2, const Point& po
   cubicTo(control1.x, control1.y, control2.x, control2.y, point.x, point.y);
 }
 
+void Path::arcTo(float x1, float y1, float x2, float y2, float radius) {
+  writableRef()->path.arcTo(x1, y1, x2, y2, radius);
+}
+
+void Path::arcTo(const Point& p1, const Point& p2, float radius) {
+  arcTo(p1.x, p1.y, p2.x, p2.y, radius);
+}
+
+// This converts the SVG arc to conics based on the SVG standard.
+// Code source:
+// 1. kdelibs/kdecore/svgicons Niko's code
+// 2. webkit/chrome SVGPathNormalizer::decomposeArcToCubic()
+// See also SVG implementation notes:
+// http://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter
+// Note that arcSweep bool value is flipped from the original implementation.
+void Path::arcTo(float rx, float ry, float xAxisRotate, PathArcSize largeArc, bool reversed,
+                 Point endPoint) {
+  std::array<Point, 2> srcPoints;
+  this->getLastPoint(&srcPoints[0]);
+  // If rx = 0 or ry = 0 then this arc is treated as a straight line segment (a "lineto")
+  // joining the endpoints.
+  // http://www.w3.org/TR/SVG/implnote.html#ArcOutOfRangeParameters
+  if (FloatNearlyZero(rx) && FloatNearlyZero(ry)) {
+    return this->lineTo(endPoint);
+  }
+  // If the current point and target point for the arc are identical, it should be treated as a
+  // zero length path. This ensures continuity in animations.
+  srcPoints[1] = endPoint;
+  if (srcPoints[0] == srcPoints[1]) {
+    return this->lineTo(endPoint);
+  }
+  rx = std::abs(rx);
+  ry = std::abs(ry);
+  auto midPointDistance = (srcPoints[0] - srcPoints[1]) * 0.5f;
+
+  auto pointTransform = Matrix::MakeRotate(-xAxisRotate);
+  auto transformedMidPoint = Point::Zero();
+  pointTransform.mapPoints(&transformedMidPoint, &midPointDistance, 1);
+  auto squareRx = rx * rx;
+  auto squareRy = ry * ry;
+  auto squareX = transformedMidPoint.x * transformedMidPoint.x;
+  auto squareY = transformedMidPoint.y * transformedMidPoint.y;
+
+  // Check if the radii are big enough to draw the arc, scale radii if not.
+  // http://www.w3.org/TR/SVG/implnote.html#ArcCorrectionOutOfRangeRadii
+  auto radiiScale = squareX / squareRx + squareY / squareRy;
+  if (radiiScale > 1) {
+    radiiScale = std::sqrt(radiiScale);
+    rx *= radiiScale;
+    ry *= radiiScale;
+  }
+
+  pointTransform.setScale(1.0f / rx, 1.0f / ry);
+  pointTransform.preRotate(-xAxisRotate);
+
+  std::array<Point, 2> unitPoints;
+  pointTransform.mapPoints(unitPoints.data(), srcPoints.data(), unitPoints.size());
+  auto delta = unitPoints[1] - unitPoints[0];
+
+  auto d = delta.x * delta.x + delta.y * delta.y;
+  auto scaleFactorSquared = std::max(1 / d - 0.25f, 0.f);
+
+  auto scaleFactor = std::sqrt(scaleFactorSquared);
+  if (reversed != static_cast<bool>(largeArc)) {  // flipped from the original implementation
+    scaleFactor = -scaleFactor;
+  }
+  delta *= scaleFactor;
+  auto centerPoint = unitPoints[0] + unitPoints[1];
+  centerPoint *= 0.5f;
+  centerPoint.offset(-delta.y, delta.x);
+  unitPoints[0] -= centerPoint;
+  unitPoints[1] -= centerPoint;
+  auto theta1 = std::atan2(unitPoints[0].y, unitPoints[0].x);
+  auto theta2 = std::atan2(unitPoints[1].y, unitPoints[1].x);
+  auto thetaArc = theta2 - theta1;
+  if (thetaArc < 0 && !reversed) {  // arcSweep flipped from the original implementation
+    thetaArc += M_PI_F * 2.0f;
+  } else if (thetaArc > 0 && reversed) {  // arcSweep flipped from the original implementation
+    thetaArc -= M_PI_F * 2.0f;
+  }
+
+  // Very tiny angles cause our subsequent math to go wonky
+  // but a larger value is probably ok too.
+  if (std::abs(thetaArc) < (M_PI_F / (1000 * 1000))) {
+    return this->lineTo(endPoint);
+  }
+
+  pointTransform.setRotate(xAxisRotate);
+  pointTransform.preScale(rx, ry);
+
+  // the arc may be slightly bigger than 1/4 circle, so allow up to 1/3rd
+  auto segments = std::ceil(std::abs(thetaArc / (2 * M_PI_F / 3)));
+  auto thetaWidth = thetaArc / segments;
+  auto t = std::tan(0.5f * thetaWidth);
+  if (!FloatsAreFinite(&t, 1)) {
+    return;
+  }
+  auto startTheta = theta1;
+  auto conicW = std::sqrt(0.5f + std::cos(thetaWidth) * 0.5f);
+  auto float_is_integer = [](float scalar) -> bool { return scalar == std::floor(scalar); };
+  auto expectIntegers = FloatNearlyZero(M_PI_F * 0.5f - std::abs(thetaWidth)) &&
+                        float_is_integer(rx) && float_is_integer(ry) &&
+                        float_is_integer(endPoint.x) && float_is_integer(endPoint.y);
+
+  auto* path = &(writableRef()->path);
+  for (int i = 0; i < static_cast<int>(segments); ++i) {
+    auto endTheta = startTheta + thetaWidth;
+    auto sinEndTheta = SinSnapToZero(endTheta);
+    auto cosEndTheta = CosSnapToZero(endTheta);
+
+    unitPoints[1].set(cosEndTheta, sinEndTheta);
+    unitPoints[1] += centerPoint;
+    unitPoints[0] = unitPoints[1];
+    unitPoints[0].offset(t * sinEndTheta, -t * cosEndTheta);
+    std::array<Point, 2> mapped;
+    pointTransform.mapPoints(mapped.data(), unitPoints.data(), unitPoints.size());
+
+    // Computing the arc width introduces rounding errors that cause arcs to start outside their
+    // marks.A round rect may lose convexity as a result.If the input values are on integers,
+    // place the conic on integers as well.
+    if (expectIntegers) {
+      for (auto& point : mapped) {
+        point.x = std::round(point.x);
+        point.y = std::round(point.y);
+      }
+    }
+    path->conicTo(mapped[0].x, mapped[0].y, mapped[1].x, mapped[1].y, conicW);
+    startTheta = endTheta;
+  }
+
+  // The final point should match the input point (by definition); replace it to
+  // ensure that rounding errors in the above math don't cause any problems.
+  path->setLastPt(endPoint.x, endPoint.y);
+}
+
 void Path::close() {
   writableRef()->path.close();
 }
@@ -240,20 +375,26 @@ void Path::addRect(float left, float top, float right, float bottom, bool revers
 }
 
 static std::vector<Point> GetArcPoints(float centerX, float centerY, float radiusX, float radiusY,
-                                       float startAngle, float endAngle, int* numBeziers) {
+                                       float startRadius, float endRadius, int* numBeziers) {
   std::vector<Point> points = {};
-  float start = startAngle;
-  float end = std::min(endAngle, start + M_PI_2_F);
+  float start = startRadius;
+  std::function<float()> increaseRadius;
+  if (startRadius < endRadius) {
+    increaseRadius = [&] { return std::min(endRadius, start + M_PI_2_F); };
+  } else {
+    increaseRadius = [&] { return std::max(endRadius, start - M_PI_2_F); };
+  }
+  float end = increaseRadius();
   float currentX, currentY;
   *numBeziers = 0;
   for (int i = 0; i < 4; i++) {
-    auto angleStep = end - start;
-    auto distance = DistanceToControlPoint(angleStep);
-    currentX = centerX + cosf(start) * radiusX;
-    currentY = centerY + sinf(start) * radiusY;
-    points.push_back({currentX, currentY});
+    auto radStep = end - start;
+    auto distance = DistanceToControlPoint(radStep);
     auto u = cosf(start);
     auto v = sinf(start);
+    currentX = centerX + u * radiusX;
+    currentY = centerY + v * radiusY;
+    points.push_back({currentX, currentY});
     auto x1 = currentX - v * distance * radiusX;
     auto y1 = currentY + u * distance * radiusY;
     points.push_back({x1, y1});
@@ -265,11 +406,12 @@ static std::vector<Point> GetArcPoints(float centerX, float centerY, float radiu
     auto y2 = currentY - u * distance * radiusY;
     points.push_back({x2, y2});
     (*numBeziers)++;
-    if (end == endAngle) {
+    if (end == endRadius) {
+      points.push_back({currentX, currentY});
       break;
     }
     start = end;
-    end = std::min(endAngle, start + M_PI_2_F);
+    end = increaseRadius();
   }
   return points;
 }
@@ -279,23 +421,36 @@ void Path::addOval(const Rect& oval, bool reversed, unsigned startIndex) {
 }
 
 void Path::addArc(const Rect& oval, float startAngle, float sweepAngle) {
+  if (oval.isEmpty() || sweepAngle == 0.0f) {
+    return;
+  }
+  constexpr auto kFullCircleAngle = static_cast<float>(360);
+  if (sweepAngle >= kFullCircleAngle || sweepAngle <= -kFullCircleAngle) {
+    // We can treat the arc as an oval if it begins at one of our legal starting positions.
+    float startOver90 = startAngle / 90.f;
+    float startOver90I = std::roundf(startOver90);
+    float error = startOver90 - startOver90I;
+    if (FloatNearlyEqual(error, 0)) {
+      // Index 1 is at startAngle == 0.
+      float startIndex = std::fmod(startOver90I + 1.f, 4.f);
+      startIndex = startIndex < 0 ? startIndex + 4.f : startIndex;
+      return addOval(oval, sweepAngle < 0, static_cast<unsigned>(startIndex));
+    }
+  }
+  auto startRad = DegreesToRadians(startAngle);
+  auto sweepRad = DegreesToRadians(sweepAngle);
   auto radiusX = oval.width() * 0.5f;
   auto radiusY = oval.height() * 0.5f;
-  auto endAngle = startAngle + sweepAngle;
-  auto reversed = sweepAngle < 0;
-  if (reversed) {
-    std::swap(startAngle, endAngle);
-  }
+  auto endRad = startRad + sweepRad;
   int numBeziers = 0;
-  auto points = GetArcPoints(oval.centerX(), oval.centerY(), radiusX, radiusY, startAngle, endAngle,
-                             &numBeziers);
-  PointIterator iter(points, reversed, 0);
+  auto points =
+      GetArcPoints(oval.centerX(), oval.centerY(), radiusX, radiusY, startRad, endRad, &numBeziers);
+  PointIterator iter(points, false, 0);
   auto path = &(writableRef()->path);
   path->moveTo(iter.current());
   for (int i = 0; i < numBeziers; i++) {
     path->cubicTo(iter.next(), iter.next(), iter.next());
   }
-  path->close();
 }
 
 void Path::addRoundRect(const Rect& rect, float radiusX, float radiusY, bool reversed,
@@ -415,4 +570,17 @@ int Path::countPoints() const {
 int Path::countVerbs() const {
   return pathRef->path.countVerbs();
 }
+
+bool Path::getLastPoint(Point* lastPoint) const {
+  if (!lastPoint) {
+    return false;
+  }
+  auto skPoint = SkPoint::Make(0, 0);
+  if (pathRef->path.getLastPt(&skPoint)) {
+    lastPoint->set(skPoint.fX, skPoint.fY);
+    return true;
+  }
+  return false;
+};
+
 }  // namespace tgfx

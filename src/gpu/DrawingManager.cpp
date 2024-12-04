@@ -17,6 +17,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "DrawingManager.h"
+#include "core/utils/Profiling.h"
 #include "gpu/Gpu.h"
 #include "gpu/proxies/RenderTargetProxy.h"
 #include "gpu/proxies/TextureProxy.h"
@@ -25,33 +26,32 @@
 #include "gpu/tasks/TextureResolveTask.h"
 
 namespace tgfx {
-void DrawingManager::closeActiveOpsTask() {
-  if (activeOpsTask) {
-    activeOpsTask->makeClosed();
-    activeOpsTask = nullptr;
-  }
-}
-
 std::shared_ptr<OpsRenderTask> DrawingManager::addOpsTask(
-    std::shared_ptr<RenderTargetProxy> renderTargetProxy) {
-  closeActiveOpsTask();
-  auto opsTask = std::make_shared<OpsRenderTask>(renderTargetProxy);
-  renderTasks.push_back(opsTask);
-  activeOpsTask = opsTask.get();
+    std::shared_ptr<RenderTargetProxy> renderTargetProxy, uint32_t renderFlags) {
+  checkIfResolveNeeded(renderTargetProxy);
+  auto opsTask = std::make_shared<OpsRenderTask>(renderTargetProxy, renderFlags);
+  addRenderTask(opsTask);
+  activeOpsTask = opsTask;
   return opsTask;
 }
 
 void DrawingManager::addRuntimeDrawTask(std::shared_ptr<RenderTargetProxy> target,
-                                        std::shared_ptr<TextureProxy> source,
+                                        std::vector<std::shared_ptr<TextureProxy>> inputs,
                                         std::shared_ptr<RuntimeEffect> effect,
                                         const Point& offset) {
-  if (target == nullptr || source == nullptr || effect == nullptr) {
+  if (target == nullptr || inputs.empty() || effect == nullptr) {
     return;
   }
-  closeActiveOpsTask();
-  auto task = std::make_shared<RuntimeDrawTask>(target, source, effect, offset);
-  task->makeClosed();
-  renderTasks.push_back(std::move(task));
+  checkIfResolveNeeded(target);
+  auto task = std::make_shared<RuntimeDrawTask>(target, inputs, effect, offset);
+  addRenderTask(std::move(task));
+}
+
+void DrawingManager::addTextureFlattenTask(std::shared_ptr<TextureFlattenTask> flattenTask) {
+  if (flattenTask == nullptr) {
+    return;
+  }
+  flattenTasks.push_back(std::move(flattenTask));
 }
 
 void DrawingManager::addTextureResolveTask(std::shared_ptr<RenderTargetProxy> renderTargetProxy) {
@@ -60,10 +60,10 @@ void DrawingManager::addTextureResolveTask(std::shared_ptr<RenderTargetProxy> re
       (renderTargetProxy->sampleCount() <= 1 && !textureProxy->hasMipmaps())) {
     return;
   }
-  closeActiveOpsTask();
+  // TODO(domchen): Skip resolving if the render target is not in the needResolveTargets set.
+  needResolveTargets.erase(renderTargetProxy);
   auto task = std::make_shared<TextureResolveTask>(renderTargetProxy);
-  task->makeClosed();
-  renderTasks.push_back(std::move(task));
+  addRenderTask(std::move(task));
 }
 
 void DrawingManager::addRenderTargetCopyTask(std::shared_ptr<RenderTargetProxy> source,
@@ -72,45 +72,83 @@ void DrawingManager::addRenderTargetCopyTask(std::shared_ptr<RenderTargetProxy> 
   if (source == nullptr || dest == nullptr) {
     return;
   }
-  closeActiveOpsTask();
   auto task = std::make_shared<RenderTargetCopyTask>(source, dest, srcRect, dstPoint);
-  task->makeClosed();
-  renderTasks.push_back(std::move(task));
+  addRenderTask(std::move(task));
 }
 
 void DrawingManager::addResourceTask(std::shared_ptr<ResourceTask> resourceTask) {
   if (resourceTask == nullptr) {
     return;
   }
+#ifdef DEBUG
   auto result = resourceTaskMap.find(resourceTask->uniqueKey);
-  if (result != resourceTaskMap.end()) {
-    // Remove the UniqueKey from the old task, so it will be skipped when the task is executed.
-    result->second->uniqueKey = {};
-  }
+  DEBUG_ASSERT(result == resourceTaskMap.end());
   resourceTaskMap[resourceTask->uniqueKey] = resourceTask.get();
+#endif
   resourceTasks.push_back(std::move(resourceTask));
 }
 
 bool DrawingManager::flush() {
+  TRACE_EVENT;
   if (resourceTasks.empty() && renderTasks.empty()) {
+    FRAME_MARK;
     return false;
   }
+  if (activeOpsTask) {
+    activeOpsTask->makeClosed();
+    activeOpsTask = nullptr;
+  }
+
   for (auto& task : renderTasks) {
     task->prepare(context);
   }
   for (auto& task : resourceTasks) {
     task->execute(context);
   }
-  resourceTaskMap = {};
   resourceTasks = {};
-  for (auto& task : renderTasks) {
-    task->makeClosed();
+#ifdef DEBUG
+  resourceTaskMap = {};
+#endif
+
+  std::vector<std::shared_ptr<TextureFlattenTask>> validFlattenTasks = {};
+  for (auto& task : flattenTasks) {
+    if (task->prepare(context)) {
+      validFlattenTasks.push_back(task);
+    }
   }
-  activeOpsTask = nullptr;
+  for (auto& task : validFlattenTasks) {
+    task->execute(context);
+  }
+  flattenTasks = {};
+
+  for (auto& renderTarget : needResolveTargets) {
+    auto task = std::make_shared<TextureResolveTask>(renderTarget);
+    renderTasks.push_back(std::move(task));
+  }
+  needResolveTargets = {};
+
   for (auto& task : renderTasks) {
     task->execute(context->gpu());
   }
   renderTasks = {};
+  FRAME_MARK;
   return true;
+}
+
+void DrawingManager::addRenderTask(std::shared_ptr<RenderTask> renderTask) {
+  if (activeOpsTask) {
+    activeOpsTask->makeClosed();
+    activeOpsTask = nullptr;
+  }
+  renderTasks.push_back(std::move(renderTask));
+}
+
+void DrawingManager::checkIfResolveNeeded(std::shared_ptr<RenderTargetProxy> renderTargetProxy) {
+  auto textureProxy = renderTargetProxy->getTextureProxy();
+  if (textureProxy == nullptr ||
+      (renderTargetProxy->sampleCount() <= 1 && !textureProxy->hasMipmaps())) {
+    return;
+  }
+  needResolveTargets.insert(std::move(renderTargetProxy));
 }
 }  // namespace tgfx

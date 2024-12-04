@@ -20,7 +20,6 @@
 #include "ScalerContext.h"
 
 namespace tgfx {
-static auto EmptyContext = ScalerContext::MakeEmpty(0);
 
 class GlyphImageGenerator : public ImageGenerator {
  public:
@@ -43,7 +42,7 @@ class GlyphImageGenerator : public ImageGenerator {
   GlyphID glyphID = 0;
 };
 
-Font::Font() : scalerContext(EmptyContext) {
+Font::Font() : scalerContext(ScalerContext::MakeEmpty(0.0f)) {
 }
 
 Font::Font(std::shared_ptr<Typeface> tf, float textSize)
@@ -62,6 +61,10 @@ std::shared_ptr<Typeface> Font::getTypeface() const {
 
 bool Font::hasColor() const {
   return scalerContext->hasColor();
+}
+
+bool Font::hasOutlines() const {
+  return scalerContext->hasOutlines();
 }
 
 void Font::setTypeface(std::shared_ptr<Typeface> newTypeface) {
@@ -142,5 +145,11 @@ std::shared_ptr<Image> Font::getImage(GlyphID glyphID, Matrix* matrix) const {
   auto height = static_cast<int>(ceilf(bounds.height()));
   auto generator = std::make_shared<GlyphImageGenerator>(width, height, scalerContext, glyphID);
   return Image::MakeFrom(std::move(generator));
+}
+
+bool Font::operator==(const Font& font) const {
+  return scalerContext->typeface == font.scalerContext->typeface &&
+         scalerContext->textSize == font.scalerContext->textSize && fauxBold == font.fauxBold &&
+         fauxItalic == font.fauxItalic;
 }
 }  // namespace tgfx

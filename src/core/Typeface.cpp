@@ -17,8 +17,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "tgfx/core/Typeface.h"
-#include "tgfx/utils/UTF.h"
-#include "utils/UniqueID.h"
+#include "core/utils/UniqueID.h"
+#include "tgfx/core/UTF.h"
 
 namespace tgfx {
 class EmptyTypeface : public Typeface {
@@ -44,6 +44,10 @@ class EmptyTypeface : public Typeface {
   }
 
   bool hasColor() const override {
+    return false;
+  }
+
+  bool hasOutlines() const override {
     return false;
   }
 

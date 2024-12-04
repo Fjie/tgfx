@@ -19,11 +19,13 @@
 #pragma once
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include "gpu/tasks/OpsRenderTask.h"
 #include "gpu/tasks/RenderTask.h"
 #include "gpu/tasks/ResourceTask.h"
-#include "tgfx/gpu/Surface.h"
+#include "gpu/tasks/TextureFlattenTask.h"
+#include "tgfx/core/Surface.h"
 
 namespace tgfx {
 class DrawingManager {
@@ -31,11 +33,14 @@ class DrawingManager {
   explicit DrawingManager(Context* context) : context(context) {
   }
 
-  std::shared_ptr<OpsRenderTask> addOpsTask(std::shared_ptr<RenderTargetProxy> renderTargetProxy);
+  std::shared_ptr<OpsRenderTask> addOpsTask(std::shared_ptr<RenderTargetProxy> renderTargetProxy,
+                                            uint32_t renderFlags);
 
   void addRuntimeDrawTask(std::shared_ptr<RenderTargetProxy> target,
-                          std::shared_ptr<TextureProxy> source,
+                          std::vector<std::shared_ptr<TextureProxy>> inputs,
                           std::shared_ptr<RuntimeEffect> effect, const Point& offset);
+
+  void addTextureFlattenTask(std::shared_ptr<TextureFlattenTask> flattenTask);
 
   void addTextureResolveTask(std::shared_ptr<RenderTargetProxy> renderTargetProxy);
 
@@ -50,12 +55,17 @@ class DrawingManager {
   bool flush();
 
  private:
-  void closeActiveOpsTask();
-
   Context* context = nullptr;
-  UniqueKeyMap<ResourceTask*> resourceTaskMap = {};
+  std::unordered_set<std::shared_ptr<RenderTargetProxy>> needResolveTargets = {};
   std::vector<std::shared_ptr<ResourceTask>> resourceTasks = {};
+  std::vector<std::shared_ptr<TextureFlattenTask>> flattenTasks = {};
   std::vector<std::shared_ptr<RenderTask>> renderTasks = {};
-  OpsRenderTask* activeOpsTask = nullptr;
+  std::shared_ptr<OpsRenderTask> activeOpsTask = nullptr;
+#ifdef DEBUG
+  ResourceKeyMap<ResourceTask*> resourceTaskMap = {};
+#endif
+
+  void addRenderTask(std::shared_ptr<RenderTask> renderTask);
+  void checkIfResolveNeeded(std::shared_ptr<RenderTargetProxy> renderTargetProxy);
 };
 }  // namespace tgfx

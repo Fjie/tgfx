@@ -31,24 +31,34 @@ void MeasureContext::drawRRect(const RRect& rRect, const MCState& state, const F
   addLocalBounds(rRect.rect, state);
 }
 
-void MeasureContext::drawPath(const Path& path, const MCState& state, const FillStyle&,
-                              const Stroke* stroke) {
-  auto pathBounds = path.getBounds();
-  if (stroke != nullptr) {
-    pathBounds.outset(stroke->width, stroke->width);
-  }
-  addLocalBounds(pathBounds, state);
+void MeasureContext::drawShape(std::shared_ptr<Shape> shape, const MCState& state,
+                               const FillStyle&) {
+  auto localBounds = shape->getBounds(state.matrix.getMaxScale());
+  addLocalBounds(localBounds, state);
 }
 
-void MeasureContext::drawImageRect(std::shared_ptr<Image>, const SamplingOptions&, const Rect& rect,
+void MeasureContext::drawImage(std::shared_ptr<Image> image, const SamplingOptions&,
+                               const MCState& state, const FillStyle&) {
+  if (image == nullptr) {
+    return;
+  }
+  auto rect = Rect::MakeWH(image->width(), image->height());
+  addLocalBounds(rect, state);
+}
+
+void MeasureContext::drawImageRect(std::shared_ptr<Image>, const Rect& rect, const SamplingOptions&,
                                    const MCState& state, const FillStyle&) {
   addLocalBounds(rect, state);
 }
 
-void MeasureContext::drawGlyphRun(GlyphRun glyphRun, const MCState& state, const FillStyle&,
-                                  const Stroke* stroke) {
-  auto deviceBounds = glyphRun.getBounds(state.matrix, stroke);
-  addDeviceBounds(deviceBounds, state.clip);
+void MeasureContext::drawGlyphRunList(std::shared_ptr<GlyphRunList> glyphRunList,
+                                      const MCState& state, const FillStyle&,
+                                      const Stroke* stroke) {
+  auto localBounds = glyphRunList->getBounds(state.matrix.getMaxScale());
+  if (stroke) {
+    stroke->applyToBounds(&localBounds);
+  }
+  addLocalBounds(localBounds, state);
 }
 
 void MeasureContext::drawLayer(std::shared_ptr<Picture> picture, const MCState& state,
@@ -56,11 +66,17 @@ void MeasureContext::drawLayer(std::shared_ptr<Picture> picture, const MCState& 
   if (picture == nullptr) {
     return;
   }
-  auto deviceBounds = picture->getBounds(state.matrix);
+  auto deviceBounds = picture->getBounds(&state.matrix);
   if (imageFilter) {
     deviceBounds = imageFilter->filterBounds(deviceBounds);
   }
   addDeviceBounds(deviceBounds, state.clip);
+}
+
+void MeasureContext::drawPicture(std::shared_ptr<Picture> picture, const MCState& state) {
+  if (picture != nullptr) {
+    picture->playback(this, state);
+  }
 }
 
 void MeasureContext::addLocalBounds(const Rect& localBounds, const MCState& state) {

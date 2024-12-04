@@ -17,20 +17,23 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "tgfx/layers/ImageLayer.h"
+#include "core/utils/Profiling.h"
+#include "layers/contents/ImageContent.h"
 
 namespace tgfx {
 std::shared_ptr<ImageLayer> ImageLayer::Make() {
+  TRACE_EVENT;
   auto layer = std::shared_ptr<ImageLayer>(new ImageLayer());
   layer->weakThis = layer;
   return layer;
 }
 
-void ImageLayer::setSmoothing(bool value) {
-  if (_smoothing == value) {
+void ImageLayer::setSampling(const SamplingOptions& value) {
+  if (_sampling == value) {
     return;
   }
-  _smoothing = value;
-  invalidate();
+  _sampling = value;
+  invalidateContent();
 }
 
 void ImageLayer::setImage(std::shared_ptr<Image> value) {
@@ -38,6 +41,13 @@ void ImageLayer::setImage(std::shared_ptr<Image> value) {
     return;
   }
   _image = value;
-  invalidate();
+  invalidateContent();
+}
+
+std::unique_ptr<LayerContent> ImageLayer::onUpdateContent() {
+  if (!_image) {
+    return nullptr;
+  }
+  return std::make_unique<ImageContent>(_image, _sampling);
 }
 }  // namespace tgfx

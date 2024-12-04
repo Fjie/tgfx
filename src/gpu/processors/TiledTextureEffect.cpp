@@ -19,8 +19,8 @@
 #include "TiledTextureEffect.h"
 #include "ConstColorProcessor.h"
 #include "TextureEffect.h"
+#include "core/utils/MathExtra.h"
 #include "gpu/ProxyProvider.h"
-#include "utils/MathExtra.h"
 
 namespace tgfx {
 using Wrap = SamplerState::WrapMode;
@@ -88,7 +88,7 @@ TiledTextureEffect::Sampling::Sampling(const Texture* texture, SamplerState samp
     if (wrap != Wrap::Clamp && !caps->npotTextureTileSupport && !IsPow2(size)) {
       return false;
     }
-    if (texture->getSampler()->type() != TextureType::TwoD &&
+    if (texture->getSampler()->type() != SamplerType::TwoD &&
         !(wrap == Wrap::Clamp || wrap == Wrap::ClampToBorder)) {
       return false;
     }
