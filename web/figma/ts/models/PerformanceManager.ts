@@ -84,7 +84,7 @@ export default class PerformanceManager {
                 // 使用后端渲染时，显示后端渲染耗时
                 frameTime = this.backendManager.frameTimeCons();
             }
-            this.renderCounter.textContent = `单帧耗时: ${frameTime.toFixed(2)} ms`;
+            this.renderCounter.textContent = `纯渲染耗时: ${frameTime.toFixed(2)} ms`;
         }
     }
 

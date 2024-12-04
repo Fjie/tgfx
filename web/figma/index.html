@@ -29,7 +29,7 @@
             <button id="addRect" title="添加矩形">□</button>
             <button id="addCircle" title="添加圆形">○</button>
             <button id="addText" title="添加文本">Ⓣ</button>
-            <input type="number" id="shapeCounts" value="50" title="设置数量">
+            <input type="number" id="shapeCounts" value="100" title="设置数量">
             <button id="addRandom" title="添加随机形状">随机</button>
             <button id="performanceTest" title="性能测试">性能测试</button> <!-- 新增按钮 -->
 
@@ -64,7 +64,7 @@
         <div id="shapeCounter" class="shape-counter">图形数量: 0</div>
         <div id="fpsCounter" class="fps-counter">FPS: 0</div>
         <div id="INPCounter" class="fps-counter">INP: 0</div>
-        <div id="renderCounter" class="fps-counter">单帧耗时: 0</div>
+        <div id="renderCounter" class="fps-counter"></div>
     </div>
 
     <!-- 引入新的非 ES 模块脚本，用于加载 WebAssembly -->

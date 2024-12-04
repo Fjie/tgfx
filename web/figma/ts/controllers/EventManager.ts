@@ -92,7 +92,8 @@ export default class EventManager {
         document.getElementById('addRandom')?.addEventListener('click', () => {
             const shapeCounts = parseInt((document.getElementById('shapeCounts') as HTMLInputElement).value, 10);
             const elementList: any[] = [];
-            const shapes = ['rect', 'circle', 'text'];
+            // const shapes = ['rect', 'circle', 'text'];
+            const shapes = ['rect'];
 
             for (let i = 0; i < shapeCounts; i++) {
                 const randomShape = shapes[Math.floor(Math.random() * shapes.length)];

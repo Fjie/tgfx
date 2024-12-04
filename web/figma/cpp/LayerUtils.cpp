@@ -52,8 +52,8 @@ std::shared_ptr<T> LayerUtils::GetOrCreateLayer(tgfx::Layer* layer, const JsElem
     layer->addChild(targetLayer);
   }
   targetLayer->setName(element.id);
-  auto filter = tgfx::BlurFilter::Make(16, 16);
-  targetLayer->setFilters({filter});
+  // auto filter = tgfx::BlurFilter::Make(16, 16);
+  // targetLayer->setFilters({filter});
   return targetLayer;
 }
 

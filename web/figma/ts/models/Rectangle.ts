@@ -28,8 +28,10 @@ export default class Rectangle extends BaseElement {
         // 默认属性
         this.setAttribute('x', this.getRandomInt(0, 1000).toString());
         this.setAttribute('y', this.getRandomInt(0, 800).toString());
-        this.setAttribute('width', this.getRandomInt(50, 200).toString());
-        this.setAttribute('height', this.getRandomInt(50, 200).toString());
+        // this.setAttribute('width', this.getRandomInt(50, 200).toString());
+        // this.setAttribute('height', this.getRandomInt(50, 200).toString());
+        this.setAttribute('width', this.getRandomInt(100, 100).toString());
+        this.setAttribute('height', this.getRandomInt(120, 120).toString());
         this.setAttribute('fill', this.getRandomColor());
     }
 
