@@ -28,31 +28,34 @@ std::vector<std::unique_ptr<Command>> RDLayer::commands;
 
 // RDLAYER.CPP
 
+void MakeCommand::execute(std::shared_ptr<Layer>& layer,
+                          std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
+  layer = Layer::Make();
+  auto rdLayer = std::make_shared<RDLayer>();
+  rdLayer->layer_ = layer;
+  rdLayer->id_ = id;
+  idToRDLayerMap[id] = rdLayer;
+}
+
+void AddChildCommand::execute(std::shared_ptr<Layer>& ,
+                              std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
+  auto parentRDLayer = idToRDLayerMap[parentId];
+  auto childRDLayer = idToRDLayerMap[childId];
+  if (parentRDLayer && childRDLayer) {
+    parentRDLayer->layer_->addChild(childRDLayer->layer_);
+  }
+}
+
 std::shared_ptr<RDLayer> RDLayer::Replay(const std::vector<std::unique_ptr<Command>>& commands) {
   std::shared_ptr<Layer> layer = nullptr;
-  // 添加ID到 RDLayer 的映射
   std::unordered_map<std::string, std::shared_ptr<RDLayer>> idToRDLayerMap;
 
   std::shared_ptr<RDLayer> rootRDLayer = nullptr;
 
   for (const auto& command : commands) {
-    if (auto makeCmd = dynamic_cast<MakeCommand*>(command.get())) {
-      makeCmd->execute(layer);
-      auto rdLayer = std::make_shared<RDLayer>();
-      rdLayer->layer_ = makeCmd->layer_ptr;
-      rdLayer->id_ = makeCmd->id;
-      idToRDLayerMap[makeCmd->id] = rdLayer;
-      if (!rootRDLayer) {
-        rootRDLayer = rdLayer;
-      }
-    } else if (auto addChildCmd = dynamic_cast<AddChildCommand*>(command.get())) {
-      auto parentRDLayer = rootRDLayer; // 假设第一个层是父层
-      auto childRDLayer = idToRDLayerMap[addChildCmd->childId];
-      if (parentRDLayer && childRDLayer) {
-        parentRDLayer->layer_->addChild(childRDLayer->layer_);
-      }
-    } else {
-      command->execute(layer);
+    command->execute(layer, idToRDLayerMap);
+    if (!rootRDLayer && dynamic_cast<MakeCommand*>(command.get())) {
+      rootRDLayer = idToRDLayerMap[static_cast<MakeCommand*>(command.get())->id];
     }
   }
 
@@ -96,7 +99,7 @@ void RDLayer::setScrollRect(const Rect& rect) {
 
 // 修改 addChild 方法，确保传递的是子层的 ID
 bool RDLayer::addChild(const std::shared_ptr<RDLayer>& child) {
-  commands.emplace_back(std::make_unique<AddChildCommand>(child->getId()));
+  commands.emplace_back(std::make_unique<AddChildCommand>(this->id_, child->getId()));
   layer_->addChild(child->layer_);
   return true;
 }

@@ -46,7 +46,6 @@ TGFX_TEST(LayerTest, LayerRecord) {
   rdLayer->setScrollRect({100, 200, 300, 400});
 
   auto rdLayer2 = RDLayer::Make();
-  rdLayer2->setName("RDLayer2");
   rdLayer2->setScrollRect({200, 300, 400, 500});
 
   rdLayer->addChild(rdLayer2);
