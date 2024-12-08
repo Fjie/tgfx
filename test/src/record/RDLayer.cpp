@@ -17,7 +17,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "RDLayer.h"
-#include <unordered_map> // 添加此行以使用 unordered_map
+#include <unordered_map>  // 添加此行以使用 unordered_map
 
 namespace tgfx {
 
@@ -28,34 +28,40 @@ std::vector<std::unique_ptr<Command>> RDLayer::commands;
 
 // RDLAYER.CPP
 
-void MakeCommand::execute(std::shared_ptr<Layer>& layer,
-                          std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
-  layer = Layer::Make();
+void MakeCommand::execute(
+    std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
   auto rdLayer = std::make_shared<RDLayer>();
-  rdLayer->layer_ = layer;
+  rdLayer->layer_ = Layer::Make();
   rdLayer->id_ = id;
   idToRDLayerMap[id] = rdLayer;
 }
 
-void AddChildCommand::execute(std::shared_ptr<Layer>& ,
-                              std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
-  auto parentRDLayer = idToRDLayerMap[parentId];
+void SetScrollRectCommand::execute(
+    std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
+
+  if (auto rd_layer = idToRDLayerMap[this->id]) {
+    rd_layer->layer_->setScrollRect(rect);
+  }
+}
+
+void AddChildCommand::execute(
+    std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
+  auto rd_layer = idToRDLayerMap[this->id];
   auto childRDLayer = idToRDLayerMap[childId];
-  if (parentRDLayer && childRDLayer) {
-    parentRDLayer->layer_->addChild(childRDLayer->layer_);
+  if (rd_layer && childRDLayer) {
+    rd_layer->layer_->addChild(childRDLayer->layer_);
   }
 }
 
 std::shared_ptr<RDLayer> RDLayer::Replay(const std::vector<std::unique_ptr<Command>>& commands) {
-  std::shared_ptr<Layer> layer = nullptr;
   std::unordered_map<std::string, std::shared_ptr<RDLayer>> idToRDLayerMap;
 
   std::shared_ptr<RDLayer> rootRDLayer = nullptr;
 
   for (const auto& command : commands) {
-    command->execute(layer, idToRDLayerMap);
+    command->execute(idToRDLayerMap);
     if (!rootRDLayer && dynamic_cast<MakeCommand*>(command.get())) {
-      rootRDLayer = idToRDLayerMap[static_cast<MakeCommand*>(command.get())->id];
+      rootRDLayer = idToRDLayerMap[command.get()->id];
     }
   }
 
@@ -93,7 +99,7 @@ void RDLayer::setAlpha(float value) {
 }
 
 void RDLayer::setScrollRect(const Rect& rect) {
-  commands.emplace_back(std::make_unique<SetScrollRectCommand>(rect));
+  commands.emplace_back(std::make_unique<SetScrollRectCommand>(id_, rect));
   layer_->setScrollRect(rect);
 }
 

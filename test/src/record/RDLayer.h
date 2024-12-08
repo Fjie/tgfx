@@ -25,6 +25,7 @@ namespace tgfx {
 class RDLayer;
 
 struct Command {
+  std::string id;  // 新增成员变量记录父类 ID
 
   explicit Command() {
   }
@@ -32,46 +33,40 @@ struct Command {
 
   // 修改 execute 方法，添加 idToRDLayerMap 参数
   virtual void execute(
-      std::shared_ptr<Layer>& layer,
+
       std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) = 0;
 };
 
 // 修改 MakeCommand 的 execute 方法签名
 struct MakeCommand : Command {
 
-  std::string id;
-
-  MakeCommand(const std::string& uniqueId) : id(uniqueId) {
+  MakeCommand(const std::string& uniqueId) {
+    this->id = uniqueId;
   }
 
-  void execute(std::shared_ptr<Layer>& layer,
-               std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
+  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
 };
 
 struct SetScrollRectCommand : Command {
   Rect rect;
 
-  SetScrollRectCommand(const Rect& r) : rect(r) {
+  SetScrollRectCommand(const std::string& uniqueId, const Rect& r) : rect(r) {
+    this->id = uniqueId;
   }
 
-  void execute(std::shared_ptr<Layer>& layer,  std::unordered_map<std::string, std::shared_ptr<RDLayer>>& ) override {
-    if (layer) {
-      layer->setScrollRect(rect);
-    }
-  }
+  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>&) override;
 };
 
 // 修改 AddChildCommand，添加 parentId
 struct AddChildCommand : Command {
-  std::string parentId;  // 新增成员变量记录父类 ID
   std::string childId;
 
   AddChildCommand(const std::string& inParentId, const std::string& inChildId)
-      : parentId(inParentId), childId(inChildId) {
+      : childId(inChildId) {
+    this->id = inParentId;
   }
 
-  void execute(std::shared_ptr<Layer>&,
-               std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
+  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
 };
 
 class RDLayer {
