@@ -56,13 +56,17 @@ TGFX_TEST(LayerTest, LayerRecord) {
 
   auto commands = RDLayer::extractCommands();
 
-  EXPECT_EQ(commands.size(), static_cast<std::vector<Command>::size_type>(5));
+  EXPECT_EQ(commands.size(), static_cast<std::vector<Command>::size_type>(7));
   auto replayRDLayer = RDLayer::Replay(commands);
   EXPECT_EQ(replayRDLayer->layer_->scrollRect(), Rect::MakeLTRB(100, 200, 300, 400));
   EXPECT_EQ(replayRDLayer->layer_->children().size(),
             static_cast<std::vector<Layer>::size_type>(1));
 
   EXPECT_EQ(replayRDLayer->layer_->children()[0]->scrollRect(), Rect::MakeLTRB(200, 300, 400, 500));
+
+  // 新增验证 name 和 alpha 属性
+  EXPECT_EQ(replayRDLayer->layer_->name(), "RDLayer");
+  EXPECT_EQ(replayRDLayer->layer_->alpha(), 0.5f);
 }
 
 }  // namespace tgfx

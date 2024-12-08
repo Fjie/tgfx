@@ -53,6 +53,20 @@ void AddChildCommand::execute(
   }
 }
 
+void SetNameCommand::execute(
+    std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
+  if (auto rd_layer = idToRDLayerMap[this->id]) {
+    rd_layer->layer_->setName(name);
+  }
+}
+
+void SetAlphaCommand::execute(
+    std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
+  if (auto rd_layer = idToRDLayerMap[this->id]) {
+    rd_layer->layer_->setAlpha(alpha);
+  }
+}
+
 std::shared_ptr<RDLayer> RDLayer::Replay(const std::vector<std::unique_ptr<Command>>& commands) {
   std::unordered_map<std::string, std::shared_ptr<RDLayer>> idToRDLayerMap;
 
@@ -93,9 +107,12 @@ RDLayer::~RDLayer() {
 }
 void RDLayer::setName(const std::string& value) {
   layer_->setName(value);
+  commands.emplace_back(std::make_unique<SetNameCommand>(id_, value));
 }
+
 void RDLayer::setAlpha(float value) {
   layer_->setAlpha(value);
+  commands.emplace_back(std::make_unique<SetAlphaCommand>(id_, value));
 }
 
 void RDLayer::setScrollRect(const Rect& rect) {

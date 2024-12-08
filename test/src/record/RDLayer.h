@@ -69,6 +69,26 @@ struct AddChildCommand : Command {
   void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
 };
 
+struct SetNameCommand : Command {
+  std::string name;
+
+  SetNameCommand(const std::string& uniqueId, const std::string& n) : name(n) {
+    this->id = uniqueId;
+  }
+
+  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
+};
+
+struct SetAlphaCommand : Command {
+  float alpha;
+
+  SetAlphaCommand(const std::string& uniqueId, float a) : alpha(a) {
+    this->id = uniqueId;
+  }
+
+  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
+};
+
 class RDLayer {
 
  public:
