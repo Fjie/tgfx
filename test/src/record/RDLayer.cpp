@@ -17,17 +17,48 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "RDLayer.h"
-#include <unordered_map>  // 添加此行以使用 unordered_map
+#include <nlohmann/json.hpp>
+#include <sstream>
+#include <stdexcept>
+#include <unordered_map>
+
+using json = nlohmann::json;
 
 namespace tgfx {
 
-// 添加静态计数器
+// 静态计数器
 static int s_idCounter = 0;
 
+// 初始化静态成员
 std::vector<std::unique_ptr<Command>> RDLayer::commands;
 
-// RDLAYER.CPP
+// 实现 Command::fromJson 方法
+std::unique_ptr<Command> Command::fromJson(const json& j) {
+  CommandType type = static_cast<CommandType>(j.at("type").get<int>());
+  switch (type) {
+    case CommandType::MakeCommand:
+      return std::make_unique<MakeCommand>(j.at("id").get<std::string>());
+    case CommandType::SetScrollRectCommand: {
+      Rect rect = Rect::MakeXYWH(
+          j.at("rect").at("x").get<float>(), j.at("rect").at("y").get<float>(),
+          j.at("rect").at("width").get<float>(), j.at("rect").at("height").get<float>());
+      return std::make_unique<SetScrollRectCommand>(j.at("id").get<std::string>(), rect);
+    }
+    case CommandType::AddChildCommand:
+      return std::make_unique<AddChildCommand>(j.at("parentId").get<std::string>(),
+                                               j.at("childId").get<std::string>());
+    case CommandType::SetNameCommand:
+      return std::make_unique<SetNameCommand>(j.at("id").get<std::string>(),
+                                              j.at("name").get<std::string>());
+    case CommandType::SetAlphaCommand:
+      return std::make_unique<SetAlphaCommand>(j.at("id").get<std::string>(),
+                                               j.at("alpha").get<float>());
+    default:
+      throw std::runtime_error("未知的命令类型");
+  }
+}
 
+// MakeCommand 的实现
 void MakeCommand::execute(
     std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
   auto rdLayer = std::make_shared<RDLayer>();
@@ -36,6 +67,7 @@ void MakeCommand::execute(
   idToRDLayerMap[id] = rdLayer;
 }
 
+// SetScrollRectCommand 的实现
 void SetScrollRectCommand::execute(
     std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
 
@@ -44,6 +76,7 @@ void SetScrollRectCommand::execute(
   }
 }
 
+// AddChildCommand 的实现
 void AddChildCommand::execute(
     std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
   auto rd_layer = idToRDLayerMap[this->id];
@@ -53,6 +86,7 @@ void AddChildCommand::execute(
   }
 }
 
+// SetNameCommand 的实现
 void SetNameCommand::execute(
     std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
   if (auto rd_layer = idToRDLayerMap[this->id]) {
@@ -60,6 +94,7 @@ void SetNameCommand::execute(
   }
 }
 
+// SetAlphaCommand 的实现
 void SetAlphaCommand::execute(
     std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
   if (auto rd_layer = idToRDLayerMap[this->id]) {
@@ -67,15 +102,29 @@ void SetAlphaCommand::execute(
   }
 }
 
-std::shared_ptr<RDLayer> RDLayer::Replay(const std::vector<std::unique_ptr<Command>>& commands) {
+// RDLayer 的静态方法：Replay（根据 JSON 字符串）
+std::shared_ptr<RDLayer> RDLayer::Replay(const std::string& jsonStr) {
+  // 从 jsonStr 中反序列化出 Command 列表，并执行
+  json j = json::parse(jsonStr);
+  std::vector<std::unique_ptr<Command>> deserializedCommands;
+
+  for (const auto& cmdJson : j) {
+    deserializedCommands.emplace_back(Command::fromJson(cmdJson));
+  }
+
+  return Replay(deserializedCommands);
+}
+
+// RDLayer 的静态方法：Replay（根据 Command 列表）
+std::shared_ptr<RDLayer> RDLayer::Replay(const std::vector<std::unique_ptr<Command>>& cmds) {
   std::unordered_map<std::string, std::shared_ptr<RDLayer>> idToRDLayerMap;
 
   std::shared_ptr<RDLayer> rootRDLayer = nullptr;
 
-  for (const auto& command : commands) {
+  for (const auto& command : cmds) {
     command->execute(idToRDLayerMap);
-    if (!rootRDLayer && dynamic_cast<MakeCommand*>(command.get())) {
-      rootRDLayer = idToRDLayerMap[command.get()->id];
+    if (!rootRDLayer && command->getType() == CommandType::MakeCommand) {
+      rootRDLayer = idToRDLayerMap[command->id];
     }
   }
 
@@ -96,12 +145,27 @@ const std::string& RDLayer::getId() const {
   return id_;
 }
 
-std::vector<std::unique_ptr<Command>> RDLayer::extractCommands() {
+// ExtractCommands 方法
+std::vector<std::unique_ptr<Command>> RDLayer::ExtractCommands() {
   auto extractedCommands = std::move(commands);
   commands.clear();
   return extractedCommands;
 }
 
+// SerializeCommands 方法
+std::string RDLayer::SerializeCommands() {
+  auto commandsToSerialize = ExtractCommands();
+  json j_commands = json::array();
+
+  for (const auto& cmd : commandsToSerialize) {
+    j_commands.push_back(cmd->toJson());
+  }
+
+  // 将 commands 序列化成 JSON 字符串，返回
+  return j_commands.dump();
+}
+
+// RDLayer 的析构函数
 RDLayer::~RDLayer() {
   layer_ = nullptr;
 }

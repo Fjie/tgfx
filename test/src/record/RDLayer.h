@@ -18,83 +18,171 @@
 
 #pragma once
 
-#include <unordered_map>  // 添加此行以使用 unordered_map
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
 #include "tgfx/layers/Layer.h"
+#include <nlohmann/json.hpp>
 
 namespace tgfx {
+// 定义 CommandType 枚举
+enum class CommandType {
+  MakeCommand,
+  SetScrollRectCommand,
+  AddChildCommand,
+  SetNameCommand,
+  SetAlphaCommand
+};
+
 class RDLayer;
 
 struct Command {
-  std::string id;  // 新增成员变量记录父类 ID
+  std::string id;  // 记录父类 ID
 
   explicit Command() {
   }
   virtual ~Command() = default;
 
-  // 修改 execute 方法，添加 idToRDLayerMap 参数
-  virtual void execute(
+    // 获取命令类型
+    virtual CommandType getType() const = 0;
 
-      std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) = 0;
+    // 序列化命令为 JSON
+    virtual nlohmann::json toJson() const = 0;
+
+    // 执行命令
+    virtual void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) = 0;
+
+    // 反序列化命令
+    static std::unique_ptr<Command> fromJson(const nlohmann::json& j);
 };
 
-// 修改 MakeCommand 的 execute 方法签名
+// MakeCommand 的定义
 struct MakeCommand : Command {
+    explicit MakeCommand(const std::string& uniqueId) {
+        this->id = uniqueId;
+    }
 
-  MakeCommand(const std::string& uniqueId) {
-    this->id = uniqueId;
-  }
+    CommandType getType() const override {
+        return CommandType::MakeCommand;
+    }
 
-  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
+    nlohmann::json toJson() const override {
+        return {
+            {"type", static_cast<int>(getType())},
+            {"id", id}
+        };
+    }
+
+    void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
 };
 
+// SetScrollRectCommand 的定义
 struct SetScrollRectCommand : Command {
-  Rect rect;
+    Rect rect;
 
-  SetScrollRectCommand(const std::string& uniqueId, const Rect& r) : rect(r) {
-    this->id = uniqueId;
-  }
+    SetScrollRectCommand(const std::string& uniqueId, const Rect& r) : rect(r) {
+        this->id = uniqueId;
+    }
 
-  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>&) override;
+    CommandType getType() const override {
+        return CommandType::SetScrollRectCommand;
+    }
+
+    nlohmann::json toJson() const override {
+        return {
+            {"type", static_cast<int>(getType())},
+            {"id", id},
+            {"rect", {
+                {"x", rect.x()},
+                {"y", rect.y()},
+                {"width", rect.width()},
+                {"height", rect.height()}
+            }}
+        };
+    }
+
+    void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
 };
 
-// 修改 AddChildCommand，添加 parentId
+// AddChildCommand 的定义
 struct AddChildCommand : Command {
-  std::string childId;
+    std::string childId;
 
-  AddChildCommand(const std::string& inParentId, const std::string& inChildId)
-      : childId(inChildId) {
-    this->id = inParentId;
-  }
+    AddChildCommand(const std::string& inParentId, const std::string& inChildId)
+        : childId(inChildId) {
+        this->id = inParentId;
+    }
 
-  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
+    CommandType getType() const override {
+        return CommandType::AddChildCommand;
+    }
+
+    nlohmann::json toJson() const override {
+        return {
+            {"type", static_cast<int>(getType())},
+            {"parentId", id},
+            {"childId", childId}
+        };
+    }
+
+    void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
 };
 
+// SetNameCommand 的定义
 struct SetNameCommand : Command {
-  std::string name;
+    std::string name;
 
-  SetNameCommand(const std::string& uniqueId, const std::string& n) : name(n) {
-    this->id = uniqueId;
-  }
+    SetNameCommand(const std::string& uniqueId, const std::string& n) : name(n) {
+        this->id = uniqueId;
+    }
 
-  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
+    CommandType getType() const override {
+        return CommandType::SetNameCommand;
+    }
+
+    nlohmann::json toJson() const override {
+        return {
+            {"type", static_cast<int>(getType())},
+            {"id", id},
+            {"name", name}
+        };
+    }
+
+    void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
 };
 
+// SetAlphaCommand 的定义
 struct SetAlphaCommand : Command {
-  float alpha;
+    float alpha;
 
-  SetAlphaCommand(const std::string& uniqueId, float a) : alpha(a) {
-    this->id = uniqueId;
-  }
+    SetAlphaCommand(const std::string& uniqueId, float a) : alpha(a) {
+        this->id = uniqueId;
+    }
 
-  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
+    CommandType getType() const override {
+        return CommandType::SetAlphaCommand;
+    }
+
+    nlohmann::json toJson() const override {
+        return {
+            {"type", static_cast<int>(getType())},
+            {"id", id},
+            {"alpha", alpha}
+        };
+    }
+
+    void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
 };
 
 class RDLayer {
 
- public:
-  static std::shared_ptr<RDLayer> Replay(const std::vector<std::unique_ptr<Command>>& commands);
-  static std::shared_ptr<RDLayer> Make();
-  static std::vector<std::unique_ptr<Command>> extractCommands();
+public:
+    static std::shared_ptr<RDLayer> Replay(const std::string& jsonStr);
+    static std::shared_ptr<RDLayer> Replay(const std::vector<std::unique_ptr<Command>>& commands);
+    static std::shared_ptr<RDLayer> Make();
+    static std::vector<std::unique_ptr<Command>> ExtractCommands();
+    static std::string SerializeCommands();
 
   static std::vector<std::unique_ptr<Command>> commands;
 
