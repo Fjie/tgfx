@@ -19,21 +19,8 @@
 #include <math.h>
 #include <vector>
 #include "RDLayer.h"
-#include "core/filters/BlurImageFilter.h"
 #include "core/utils/Profiling.h"
-#include "tgfx/core/PathEffect.h"
-#include "tgfx/layers/DisplayList.h"
-#include "tgfx/layers/Gradient.h"
-#include "tgfx/layers/ImageLayer.h"
 #include "tgfx/layers/Layer.h"
-#include "tgfx/layers/ShapeLayer.h"
-#include "tgfx/layers/SolidLayer.h"
-#include "tgfx/layers/TextLayer.h"
-#include "tgfx/layers/filters/BlendFilter.h"
-#include "tgfx/layers/filters/BlurFilter.h"
-#include "tgfx/layers/filters/ColorMatrixFilter.h"
-#include "tgfx/layers/filters/DropShadowFilter.h"
-#include "tgfx/layers/filters/InnerShadowFilter.h"
 #include "utils/TestUtils.h"
 #include "utils/common.h"
 

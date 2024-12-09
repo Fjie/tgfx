@@ -118,6 +118,8 @@ std::string RDLayer::serializeCommands() {
   for (const auto& cmd : commands_) {
     j_object["commands"].push_back(cmd->toJson());
   }
+  // 命令要清空
+  commands_.clear();
 
   // 添加 children 字段，并递归序列化子层
   j_object["children"] = json::array();
