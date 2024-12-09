@@ -54,7 +54,7 @@ TGFX_TEST(LayerTest, LayerRecord) {
   EXPECT_EQ(rdLayer->layer_->name(), "RDLayer");
   EXPECT_EQ(rdLayer->layer_->scrollRect(), Rect::MakeLTRB(100, 200, 300, 400));
 
-  std::string json_str = RDLayer::SerializeCommands();
+  std::string json_str = rdLayer->serializeCommands();
   // 打印json
   std::cout << json_str << std::endl;
   auto replayRDLayer = RDLayer::Replay(json_str);

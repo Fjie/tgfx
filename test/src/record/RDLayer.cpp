@@ -31,9 +31,6 @@ namespace tgfx {
 // 静态计数器
 static int s_idCounter = 0;
 
-// 初始化静态成员
-std::vector<std::unique_ptr<Command>> commands;
-
 // 实现 Command::fromJson 方法
 std::unique_ptr<Command> Command::fromJson(const json& j) {
   CommandType type = static_cast<CommandType>(j.at("type").get<int>());
@@ -126,15 +123,14 @@ nlohmann::json SetAlphaCommand::toJson() const {
 }
 // RDLayer 的静态方法：Replay（根据 JSON 字符串）
 std::shared_ptr<RDLayer> RDLayer::Replay(const std::string& jsonStr) {
-  // 从 jsonStr 中反序列化出 Command 列表，并执行
   json j = json::parse(jsonStr);
-  std::vector<std::unique_ptr<Command>> deserializedCommands;
+  std::unordered_map<std::string, std::shared_ptr<RDLayer>> idToRDLayerMap;
 
-  for (const auto& cmdJson : j) {
+  // 反序列化并执行 commands
+  std::vector<std::unique_ptr<Command>> deserializedCommands;
+  for (const auto& cmdJson : j["commands"]) {
     deserializedCommands.emplace_back(Command::fromJson(cmdJson));
   }
-
-  std::unordered_map<std::string, std::shared_ptr<RDLayer>> idToRDLayerMap;
 
   std::shared_ptr<RDLayer> rootRDLayer = nullptr;
 
@@ -145,6 +141,15 @@ std::shared_ptr<RDLayer> RDLayer::Replay(const std::string& jsonStr) {
     }
   }
 
+  // 递归反序列化并添加子层
+  for (const auto& childJson : j["children"]) {
+    std::string childStr = childJson.dump();
+    std::shared_ptr<RDLayer> childLayer = Replay(childStr);
+    if (rootRDLayer && childLayer) {
+      rootRDLayer->addChild(childLayer);
+    }
+  }
+
   return rootRDLayer;
 }
 
@@ -152,7 +157,7 @@ std::shared_ptr<RDLayer> RDLayer::Replay(const std::string& jsonStr) {
 std::shared_ptr<RDLayer> RDLayer::Make() {
   auto layer = std::make_shared<RDLayer>();
   layer->id_ = "RDLayer_" + std::to_string(++s_idCounter);
-  commands.emplace_back(std::make_unique<MakeCommand>(layer->id_));
+  layer->commands_.emplace_back(std::make_unique<MakeCommand>(layer->id_));
   layer->layer_ = Layer::Make();
   return layer;
 }
@@ -164,40 +169,48 @@ const std::string& RDLayer::getId() const {
 
 
 // SerializeCommands 方法
-std::string RDLayer::SerializeCommands() {
-  auto commandsToSerialize = std::move(commands);
-  commands.clear();
-  json j_commands = json::array();
-  for (const auto& cmd : commandsToSerialize) {
-    j_commands.push_back(cmd->toJson());
-  }
-  // 将 commands 序列化成 JSON 字符串，返回
-  return j_commands.dump();
+std::string RDLayer::serializeCommands() {
+    json j_object;
+    
+    // 添加 commands 字段
+    j_object["commands"] = json::array();
+    for (const auto& cmd : commands_) {
+        j_object["commands"].push_back(cmd->toJson());
+    }
+
+    // 添加 children 字段，并递归序列化子层
+    j_object["children"] = json::array();
+    for (const auto& child : children_) {
+        j_object["children"].push_back(json::parse(child->serializeCommands()));
+    }
+
+    return j_object.dump();
 }
 
 // RDLayer 的析构函数
 RDLayer::~RDLayer() {
   layer_ = nullptr;
 }
+
 void RDLayer::setName(const std::string& value) {
   layer_->setName(value);
-  commands.emplace_back(std::make_unique<SetNameCommand>(id_, value));
+  commands_.emplace_back(std::make_unique<SetNameCommand>(id_, value));
 }
 
 void RDLayer::setAlpha(float value) {
   layer_->setAlpha(value);
-  commands.emplace_back(std::make_unique<SetAlphaCommand>(id_, value));
+  commands_.emplace_back(std::make_unique<SetAlphaCommand>(id_, value));
 }
 
 void RDLayer::setScrollRect(const Rect& rect) {
-  commands.emplace_back(std::make_unique<SetScrollRectCommand>(id_, rect));
+  commands_.emplace_back(std::make_unique<SetScrollRectCommand>(id_, rect));
   layer_->setScrollRect(rect);
 }
 
-// 修改 addChild 方法，确保传递的是子层的 ID
+// 修改 addChild 方法，确保传递的是子层的 ID，并存储子层
 bool RDLayer::addChild(const std::shared_ptr<RDLayer>& child) {
-  commands.emplace_back(std::make_unique<AddChildCommand>(this->id_, child->getId()));
   layer_->addChild(child->layer_);
+  children_.emplace_back(child);
   return true;
 }
 

@@ -22,13 +22,14 @@
 #include "tgfx/layers/Layer.h"
 
 namespace tgfx {
+struct Command;
 
 class RDLayer {
 
  public:
   static std::shared_ptr<RDLayer> Replay(const std::string& jsonStr);
   static std::shared_ptr<RDLayer> Make();
-  static std::string SerializeCommands();
+  std::string serializeCommands();
 
   ~RDLayer();
 
@@ -60,5 +61,10 @@ class RDLayer {
   // 添加获取ID的方法
   const std::string& getId() const;
 
+ private:
+  // 添加命令队列作为成员变量
+  std::vector<std::unique_ptr<Command>> commands_;
+  // 添加存储子层的成员变量
+  std::vector<std::shared_ptr<RDLayer>> children_;
 };
 }  // namespace tgfx
