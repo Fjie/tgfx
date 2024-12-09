@@ -41,7 +41,7 @@ TGFX_TEST(LayerTest, LayerRecord) {
   EXPECT_EQ(rdLayer->layer_->name(), "RDLayer");
   EXPECT_EQ(rdLayer->layer_->scrollRect(), Rect::MakeLTRB(100, 200, 300, 400));
 
-  std::string json_str = rdLayer->serializeCommands();
+  std::string json_str = rdLayer->serialize();
   // 打印json
   std::cout << json_str << std::endl;
   auto replayRDLayer = RDLayer::MakeFrom(json_str);
@@ -61,7 +61,7 @@ TGFX_TEST(LayerTest, LayerRecord) {
   rdLayer->setName("UpdatedRDLayer");
 
   // 再次序列化
-  std::string updated_json_str = rdLayer->serializeCommands();
+  std::string updated_json_str = rdLayer->serialize();
   // 打印更新后的json
   std::cout << updated_json_str << std::endl;
 
@@ -77,7 +77,7 @@ TGFX_TEST(LayerTest, LayerRecord) {
   rdLayer3->setScrollRect({150, 250, 350, 450});
   rdLayer->addChild(rdLayer3);
 
-  std::string new_json_str = rdLayer->serializeCommands();
+  std::string new_json_str = rdLayer->serialize();
   std::cout << new_json_str << std::endl;
   auto replayRDLayerNew = RDLayer::MakeFrom(new_json_str);
 
@@ -86,7 +86,7 @@ TGFX_TEST(LayerTest, LayerRecord) {
   EXPECT_EQ(replayRDLayerNew->layer_->children()[1]->scrollRect(), Rect::MakeLTRB(150, 250, 350, 450));
 
   // 啥也不干，消息应该足够小
-  std::string new_json_str2 = rdLayer->serializeCommands();
+  std::string new_json_str2 = rdLayer->serialize();
   std::cout << new_json_str2 << std::endl;
 
 }

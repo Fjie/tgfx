@@ -67,7 +67,7 @@ void RDLayer::configFrom(const std::string& jsonStr) {
 
 
 // SerializeCommands 方法
-std::string RDLayer::serializeCommands() {
+std::string RDLayer::serialize() {
   json j_object;
 
   // 添加自己的 id
@@ -83,7 +83,7 @@ std::string RDLayer::serializeCommands() {
 
   j_object["children"] = json::array();
   for (const auto& [childId, child] : childrenMap_) {
-    j_object["children"].push_back(json::parse(child->serializeCommands()));
+    j_object["children"].push_back(json::parse(child->serialize()));
   }
 
   return j_object.dump();

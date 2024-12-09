@@ -33,7 +33,7 @@ class RDLayer {
 
   void configFrom(const std::string& jsonStr);
 
-  std::string serializeCommands();
+  std::string serialize();
 
   ~RDLayer();
 
