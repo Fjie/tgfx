@@ -1,4 +1,4 @@
-/////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
 //
 //  Tencent is pleased to support the open source community by making tgfx available.
 //
@@ -9,12 +9,12 @@
 //
 //      https://opensource.org/licenses/BSD-3-Clause
 //
-//  unless required by applicable law or agreed to in writing, software distributed under the
-//  license is distributed on an "as is" basis, without warranties or conditions of any kind,
-//  either express or implied. see the license for the specific language governing permissions
-//  and limitations under the license.
+//  Unless required by applicable law or agreed to in writing, software distributed under the
+//  License is distributed on an "AS IS" BASIS, without warranties or conditions of any kind,
+//  either express or implied. See the License for the specific language governing permissions
+//  and limitations under the License.
 //
-/////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
 
@@ -59,13 +59,10 @@ class RDLayer {
 
   std::shared_ptr<Layer> layer_;
 
-  // 添加唯一ID成员变量
   int id_;
 
  private:
-  // 添加命令队列作为成员变量
   std::vector<std::unique_ptr<Command>> commands_;
-  // 使用有序的map存储子层
   std::map<int, std::shared_ptr<RDLayer>> childrenMap_;
 };
 }  // namespace tgfx
