@@ -31,7 +31,7 @@ static int s_idCounter = 0;
 // RDLayer 的静态方法：Replay（根据 JSON 字符串）
 std::shared_ptr<RDLayer> RDLayer::MakeFrom(const std::string& jsonStr) {
   std::shared_ptr<RDLayer> rootRDLayer = Make();
-  rootRDLayer->configFrom(jsonStr);
+  rootRDLayer->configureFrom(jsonStr);
   return rootRDLayer;
 }
 
@@ -43,7 +43,7 @@ std::shared_ptr<RDLayer> RDLayer::Make() {
   return layer;
 }
 
-void RDLayer::configFrom(const std::string& jsonStr) {
+void RDLayer::configureFrom(const std::string& jsonStr) {
 
   json j = json::parse(jsonStr);
 
@@ -57,7 +57,7 @@ void RDLayer::configFrom(const std::string& jsonStr) {
     int childId = childJson["id"].get<int>();
     auto it = childrenMap_.find(childId);
     if (it != childrenMap_.end()) {
-      it->second->configFrom(childJson.dump());
+      it->second->configureFrom(childJson.dump());
     } else {
       auto child = MakeFrom(childJson.dump());
       addChild(child);
@@ -96,16 +96,16 @@ RDLayer::~RDLayer() {
 
 void RDLayer::setName(const std::string& value) {
   layer_->setName(value);
-  commands_.emplace_back(std::make_unique<SetNameCommand>(value)); // 移除 id 参数
+  commands_.emplace_back(std::make_unique<SetName>(value)); // 移除 id 参数
 }
 
 void RDLayer::setAlpha(float value) {
   layer_->setAlpha(value);
-  commands_.emplace_back(std::make_unique<SetAlphaCommand>(value)); // 移除 id 参数
+  commands_.emplace_back(std::make_unique<SetAlpha>(value)); // 移除 id 参数
 }
 
 void RDLayer::setScrollRect(const Rect& rect) {
-  commands_.emplace_back(std::make_unique<SetScrollRectCommand>(rect)); // 移除 id 参数
+  commands_.emplace_back(std::make_unique<SetScrollRect>(rect)); // 移除 id 参数
   layer_->setScrollRect(rect);
 }
 

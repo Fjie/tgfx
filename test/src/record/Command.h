@@ -51,10 +51,10 @@ struct Command {
 };
 
 // SetScrollRectCommand 的定义
-struct SetScrollRectCommand : Command {
+struct SetScrollRect : Command {
   Rect rect;
 
-  SetScrollRectCommand(const Rect& r) : rect(r) {
+  SetScrollRect(const Rect& r) : rect(r) {
     // 删除 uniqueId 参数
   }
 
@@ -68,10 +68,10 @@ struct SetScrollRectCommand : Command {
 };
 
 // SetNameCommand 的定义
-struct SetNameCommand : Command {
+struct SetName : Command {
   std::string name;
 
-  SetNameCommand(const std::string& n) : name(n) {
+  SetName(const std::string& n) : name(n) {
     // 删除 uniqueId 参数
   }
 
@@ -85,10 +85,10 @@ struct SetNameCommand : Command {
 };
 
 // SetAlphaCommand 的定义
-struct SetAlphaCommand : Command {
+struct SetAlpha : Command {
   float alpha;
 
-  SetAlphaCommand(float a) : alpha(a) {
+  SetAlpha(float a) : alpha(a) {
     // 删除 uniqueId 参数
   }
 

@@ -14,45 +14,45 @@ std::unique_ptr<Command> Command::fromJson(const json& j) {
       Rect rect = Rect::MakeXYWH(
           j.at("rect").at("x").get<float>(), j.at("rect").at("y").get<float>(),
           j.at("rect").at("width").get<float>(), j.at("rect").at("height").get<float>());
-      return std::make_unique<SetScrollRectCommand>(rect); // 移除 id 参数
+      return std::make_unique<SetScrollRect>(rect); // 移除 id 参数
     }
     case CommandType::SetNameCommand:
-      return std::make_unique<SetNameCommand>(j.at("name").get<std::string>()); // 移除 id 参数
+      return std::make_unique<SetName>(j.at("name").get<std::string>()); // 移除 id 参数
     case CommandType::SetAlphaCommand:
-      return std::make_unique<SetAlphaCommand>(j.at("alpha").get<float>()); // 移除 id 参数
+      return std::make_unique<SetAlpha>(j.at("alpha").get<float>()); // 移除 id 参数
     default:
       throw std::runtime_error("未知的命令类型");
   }
 }
 
-nlohmann::json SetScrollRectCommand::toJson() const {
+nlohmann::json SetScrollRect::toJson() const {
   return {{"type", static_cast<int>(getType())},
           {"rect",
            {{"x", rect.x()}, {"y", rect.y()}, {"width", rect.width()}, {"height", rect.height()}}}};
 }
 
 // SetScrollRectCommand 的实现
-void SetScrollRectCommand::execute(RDLayer* rdLayer) {
+void SetScrollRect::execute(RDLayer* rdLayer) {
   rdLayer->setScrollRect(rect);
 }
 
-nlohmann::json SetNameCommand::toJson() const {
+nlohmann::json SetName::toJson() const {
   return {{"type", static_cast<int>(getType())}, {"name", name}};
 }
 
 
 // SetNameCommand 的实现
-void SetNameCommand::execute(RDLayer* rdLayer) {
+void SetName::execute(RDLayer* rdLayer) {
   rdLayer->setName(name);
 }
 
-nlohmann::json SetAlphaCommand::toJson() const {
+nlohmann::json SetAlpha::toJson() const {
   return {{"type", static_cast<int>(getType())}, {"alpha", alpha}};
 }
 
 
 // SetAlphaCommand 的实现
-void SetAlphaCommand::execute(RDLayer* rdLayer) {
+void SetAlpha::execute(RDLayer* rdLayer) {
   rdLayer->setAlpha(alpha);
 }
 

@@ -31,7 +31,7 @@ class RDLayer {
   static std::shared_ptr<RDLayer> MakeFrom(const std::string& jsonStr);
   static std::shared_ptr<RDLayer> Make();
 
-  void configFrom(const std::string& jsonStr);
+  void configureFrom(const std::string& jsonStr);
 
   std::string serialize();
 

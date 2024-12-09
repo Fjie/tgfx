@@ -66,7 +66,7 @@ TGFX_TEST(LayerTest, LayerRecord) {
   std::cout << updated_json_str << std::endl;
 
   // 调用 replayRDLayer 的 configFromJson 方法
-  replayRDLayer->configFrom(updated_json_str);
+  replayRDLayer->configureFrom(updated_json_str);
 
   // 验证命令正常还原
   EXPECT_EQ(replayRDLayer->layer_->alpha(), 0.8f);
