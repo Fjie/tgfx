@@ -18,9 +18,11 @@
 
 #include "RDLayer.h"
 #include <nlohmann/json.hpp>
-#include <sstream>
 #include <stdexcept>
 #include <unordered_map>
+
+#include "record/Command.h"
+
 
 using json = nlohmann::json;
 
@@ -30,7 +32,7 @@ namespace tgfx {
 static int s_idCounter = 0;
 
 // 初始化静态成员
-std::vector<std::unique_ptr<Command>> RDLayer::commands;
+std::vector<std::unique_ptr<Command>> commands;
 
 // 实现 Command::fromJson 方法
 std::unique_ptr<Command> Command::fromJson(const json& j) {
@@ -132,16 +134,11 @@ std::shared_ptr<RDLayer> RDLayer::Replay(const std::string& jsonStr) {
     deserializedCommands.emplace_back(Command::fromJson(cmdJson));
   }
 
-  return Replay(deserializedCommands);
-}
-
-// RDLayer 的静态方法：Replay（根据 Command 列表）
-std::shared_ptr<RDLayer> RDLayer::Replay(const std::vector<std::unique_ptr<Command>>& cmds) {
   std::unordered_map<std::string, std::shared_ptr<RDLayer>> idToRDLayerMap;
 
   std::shared_ptr<RDLayer> rootRDLayer = nullptr;
 
-  for (const auto& command : cmds) {
+  for (const auto& command : deserializedCommands) {
     command->execute(idToRDLayerMap);
     if (!rootRDLayer && command->getType() == CommandType::MakeCommand) {
       rootRDLayer = idToRDLayerMap[command->id];
@@ -165,22 +162,15 @@ const std::string& RDLayer::getId() const {
   return id_;
 }
 
-// ExtractCommands 方法
-std::vector<std::unique_ptr<Command>> RDLayer::ExtractCommands() {
-  auto extractedCommands = std::move(commands);
-  commands.clear();
-  return extractedCommands;
-}
 
 // SerializeCommands 方法
 std::string RDLayer::SerializeCommands() {
-  auto commandsToSerialize = ExtractCommands();
+  auto commandsToSerialize = std::move(commands);
+  commands.clear();
   json j_commands = json::array();
-
   for (const auto& cmd : commandsToSerialize) {
     j_commands.push_back(cmd->toJson());
   }
-
   // 将 commands 序列化成 JSON 字符串，返回
   return j_commands.dump();
 }
