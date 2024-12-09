@@ -36,14 +36,12 @@ std::unique_ptr<Command> Command::fromJson(const json& j) {
       Rect rect = Rect::MakeXYWH(
           j.at("rect").at("x").get<float>(), j.at("rect").at("y").get<float>(),
           j.at("rect").at("width").get<float>(), j.at("rect").at("height").get<float>());
-      return std::make_unique<SetScrollRectCommand>(j.at("id").get<std::string>(), rect);
+      return std::make_unique<SetScrollRectCommand>(rect); // 移除 id 参数
     }
     case CommandType::SetNameCommand:
-      return std::make_unique<SetNameCommand>(j.at("id").get<std::string>(),
-                                              j.at("name").get<std::string>());
+      return std::make_unique<SetNameCommand>(j.at("name").get<std::string>()); // 移除 id 参数
     case CommandType::SetAlphaCommand:
-      return std::make_unique<SetAlphaCommand>(j.at("id").get<std::string>(),
-                                               j.at("alpha").get<float>());
+      return std::make_unique<SetAlphaCommand>(j.at("alpha").get<float>()); // 移除 id 参数
     default:
       throw std::runtime_error("未知的命令类型");
   }
@@ -51,17 +49,16 @@ std::unique_ptr<Command> Command::fromJson(const json& j) {
 
 nlohmann::json SetScrollRectCommand::toJson() const {
   return {{"type", static_cast<int>(getType())},
-          {"id", id},
           {"rect",
            {{"x", rect.x()}, {"y", rect.y()}, {"width", rect.width()}, {"height", rect.height()}}}};
 }
 
 nlohmann::json SetNameCommand::toJson() const {
-  return {{"type", static_cast<int>(getType())}, {"id", id}, {"name", name}};
+  return {{"type", static_cast<int>(getType())}, {"name", name}};
 }
 
 nlohmann::json SetAlphaCommand::toJson() const {
-  return {{"type", static_cast<int>(getType())}, {"id", id}, {"alpha", alpha}};
+  return {{"type", static_cast<int>(getType())}, {"alpha", alpha}};
 }
 
 // RDLayer 的静态方法：Replay（根据 JSON 字符串）
@@ -121,7 +118,6 @@ std::string RDLayer::serializeCommands() {
   // 命令要清空
   commands_.clear();
 
-  // 添加 children 字段，并递归序列化子层
   j_object["children"] = json::array();
   for (const auto& [childId, child] : childrenMap_) {
     j_object["children"].push_back(json::parse(child->serializeCommands()));
@@ -137,16 +133,16 @@ RDLayer::~RDLayer() {
 
 void RDLayer::setName(const std::string& value) {
   layer_->setName(value);
-  commands_.emplace_back(std::make_unique<SetNameCommand>(id_, value));
+  commands_.emplace_back(std::make_unique<SetNameCommand>(value)); // 移除 id 参数
 }
 
 void RDLayer::setAlpha(float value) {
   layer_->setAlpha(value);
-  commands_.emplace_back(std::make_unique<SetAlphaCommand>(id_, value));
+  commands_.emplace_back(std::make_unique<SetAlphaCommand>(value)); // 移除 id 参数
 }
 
 void RDLayer::setScrollRect(const Rect& rect) {
-  commands_.emplace_back(std::make_unique<SetScrollRectCommand>(id_, rect));
+  commands_.emplace_back(std::make_unique<SetScrollRectCommand>(rect)); // 移除 id 参数
   layer_->setScrollRect(rect);
 }
 

@@ -21,8 +21,6 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
-#include <unordered_map>
-#include <vector>
 #include "tgfx/layers/Layer.h"
 
 namespace tgfx {
@@ -37,7 +35,7 @@ enum class CommandType {
 class RDLayer;
 
 struct Command {
-  std::string id;  // 记录父类 ID
+  // 删除 id 成员变量
 
   explicit Command() {
   }
@@ -61,8 +59,8 @@ struct Command {
 struct SetScrollRectCommand : Command {
   Rect rect;
 
-  SetScrollRectCommand(const std::string& uniqueId, const Rect& r) : rect(r) {
-    this->id = uniqueId;
+  SetScrollRectCommand(const Rect& r) : rect(r) {
+    // 删除 uniqueId 参数
   }
 
   CommandType getType() const override {
@@ -83,8 +81,8 @@ void SetScrollRectCommand::execute(RDLayer* rdLayer) {
 struct SetNameCommand : Command {
   std::string name;
 
-  SetNameCommand(const std::string& uniqueId, const std::string& n) : name(n) {
-    this->id = uniqueId;
+  SetNameCommand(const std::string& n) : name(n) {
+    // 删除 uniqueId 参数
   }
 
   CommandType getType() const override {
@@ -105,8 +103,8 @@ void SetNameCommand::execute(RDLayer* rdLayer) {
 struct SetAlphaCommand : Command {
   float alpha;
 
-  SetAlphaCommand(const std::string& uniqueId, float a) : alpha(a) {
-    this->id = uniqueId;
+  SetAlphaCommand(float a) : alpha(a) {
+    // 删除 uniqueId 参数
   }
 
   CommandType getType() const override {
