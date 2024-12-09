@@ -26,11 +26,7 @@
 namespace tgfx {
 
 // 定义 CommandType 枚举
-enum class CommandType {
-  SetScrollRectCommand,
-  SetNameCommand,
-  SetAlphaCommand
-};
+enum class CommandType { SetScrollRectCommand, SetNameCommand, SetAlphaCommand };
 
 class RDLayer;
 
@@ -54,7 +50,6 @@ struct Command {
   static std::unique_ptr<Command> fromJson(const nlohmann::json& j);
 };
 
-
 // SetScrollRectCommand 的定义
 struct SetScrollRectCommand : Command {
   Rect rect;
@@ -71,11 +66,6 @@ struct SetScrollRectCommand : Command {
 
   void execute(RDLayer* rdLayer) override;
 };
-
-// SetScrollRectCommand 的实现
-void SetScrollRectCommand::execute(RDLayer* rdLayer) {
-  rdLayer->setScrollRect(rect);
-}
 
 // SetNameCommand 的定义
 struct SetNameCommand : Command {
@@ -94,11 +84,6 @@ struct SetNameCommand : Command {
   void execute(RDLayer* rdLayer) override;
 };
 
-// SetNameCommand 的实现
-void SetNameCommand::execute(RDLayer* rdLayer) {
-  rdLayer->setName(name);
-}
-
 // SetAlphaCommand 的定义
 struct SetAlphaCommand : Command {
   float alpha;
@@ -116,9 +101,5 @@ struct SetAlphaCommand : Command {
   void execute(RDLayer* rdLayer) override;
 };
 
-// SetAlphaCommand 的实现
-void SetAlphaCommand::execute(RDLayer* rdLayer) {
-  rdLayer->setAlpha(alpha);
-}
 
 }  // namespace tgfx
