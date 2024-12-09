@@ -67,6 +67,10 @@ void MakeCommand::execute(
   idToRDLayerMap[id] = rdLayer;
 }
 
+nlohmann::json MakeCommand::toJson() const {
+  return {{"type", static_cast<int>(getType())}, {"id", id}};
+}
+
 // SetScrollRectCommand 的实现
 void SetScrollRectCommand::execute(
     std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
@@ -74,6 +78,13 @@ void SetScrollRectCommand::execute(
   if (auto rd_layer = idToRDLayerMap[this->id]) {
     rd_layer->layer_->setScrollRect(rect);
   }
+}
+
+nlohmann::json SetScrollRectCommand::toJson() const {
+  return {{"type", static_cast<int>(getType())},
+          {"id", id},
+          {"rect",
+           {{"x", rect.x()}, {"y", rect.y()}, {"width", rect.width()}, {"height", rect.height()}}}};
 }
 
 // AddChildCommand 的实现
@@ -86,6 +97,9 @@ void AddChildCommand::execute(
   }
 }
 
+nlohmann::json AddChildCommand::toJson() const {
+  return {{"type", static_cast<int>(getType())}, {"parentId", id}, {"childId", childId}};
+}
 // SetNameCommand 的实现
 void SetNameCommand::execute(
     std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
@@ -94,6 +108,9 @@ void SetNameCommand::execute(
   }
 }
 
+nlohmann::json SetNameCommand::toJson() const {
+  return {{"type", static_cast<int>(getType())}, {"id", id}, {"name", name}};
+}
 // SetAlphaCommand 的实现
 void SetAlphaCommand::execute(
     std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
@@ -102,6 +119,9 @@ void SetAlphaCommand::execute(
   }
 }
 
+nlohmann::json SetAlphaCommand::toJson() const {
+  return {{"type", static_cast<int>(getType())}, {"id", id}, {"alpha", alpha}};
+}
 // RDLayer 的静态方法：Replay（根据 JSON 字符串）
 std::shared_ptr<RDLayer> RDLayer::Replay(const std::string& jsonStr) {
   // 从 jsonStr 中反序列化出 Command 列表，并执行
