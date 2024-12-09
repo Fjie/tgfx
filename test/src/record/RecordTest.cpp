@@ -85,6 +85,10 @@ TGFX_TEST(LayerTest, LayerRecord) {
             static_cast<std::vector<Layer>::size_type>(2));
   EXPECT_EQ(replayRDLayerNew->layer_->children()[1]->scrollRect(), Rect::MakeLTRB(150, 250, 350, 450));
 
+  // 啥也不干，消息应该足够小
+  std::string new_json_str2 = rdLayer->serializeCommands();
+  std::cout << new_json_str2 << std::endl;
+
 }
 
 }  // namespace tgfx
