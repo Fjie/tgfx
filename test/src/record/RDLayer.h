@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <map>
 #include <string>
 #include "tgfx/layers/Layer.h"
 
@@ -27,8 +28,11 @@ struct Command;
 class RDLayer {
 
  public:
-  static std::shared_ptr<RDLayer> Replay(const std::string& jsonStr);
+  static std::shared_ptr<RDLayer> MakeFrom(const std::string& jsonStr);
   static std::shared_ptr<RDLayer> Make();
+
+  void configFrom(const std::string& jsonStr);
+
   std::string serializeCommands();
 
   ~RDLayer();
@@ -64,7 +68,7 @@ class RDLayer {
  private:
   // 添加命令队列作为成员变量
   std::vector<std::unique_ptr<Command>> commands_;
-  // 添加存储子层的成员变量
-  std::vector<std::shared_ptr<RDLayer>> children_;
+  // 使用有序的map存储子层
+  std::map<std::string, std::shared_ptr<RDLayer>> childrenMap_;
 };
 }  // namespace tgfx

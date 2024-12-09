@@ -19,10 +19,7 @@
 #include "RDLayer.h"
 #include <nlohmann/json.hpp>
 #include <stdexcept>
-#include <unordered_map>
-
 #include "record/Command.h"
-
 
 using json = nlohmann::json;
 
@@ -35,17 +32,12 @@ static int s_idCounter = 0;
 std::unique_ptr<Command> Command::fromJson(const json& j) {
   CommandType type = static_cast<CommandType>(j.at("type").get<int>());
   switch (type) {
-    case CommandType::MakeCommand:
-      return std::make_unique<MakeCommand>(j.at("id").get<std::string>());
     case CommandType::SetScrollRectCommand: {
       Rect rect = Rect::MakeXYWH(
           j.at("rect").at("x").get<float>(), j.at("rect").at("y").get<float>(),
           j.at("rect").at("width").get<float>(), j.at("rect").at("height").get<float>());
       return std::make_unique<SetScrollRectCommand>(j.at("id").get<std::string>(), rect);
     }
-    case CommandType::AddChildCommand:
-      return std::make_unique<AddChildCommand>(j.at("parentId").get<std::string>(),
-                                               j.at("childId").get<std::string>());
     case CommandType::SetNameCommand:
       return std::make_unique<SetNameCommand>(j.at("id").get<std::string>(),
                                               j.at("name").get<std::string>());
@@ -57,28 +49,6 @@ std::unique_ptr<Command> Command::fromJson(const json& j) {
   }
 }
 
-// MakeCommand 的实现
-void MakeCommand::execute(
-    std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
-  auto rdLayer = std::make_shared<RDLayer>();
-  rdLayer->layer_ = Layer::Make();
-  rdLayer->id_ = id;
-  idToRDLayerMap[id] = rdLayer;
-}
-
-nlohmann::json MakeCommand::toJson() const {
-  return {{"type", static_cast<int>(getType())}, {"id", id}};
-}
-
-// SetScrollRectCommand 的实现
-void SetScrollRectCommand::execute(
-    std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
-
-  if (auto rd_layer = idToRDLayerMap[this->id]) {
-    rd_layer->layer_->setScrollRect(rect);
-  }
-}
-
 nlohmann::json SetScrollRectCommand::toJson() const {
   return {{"type", static_cast<int>(getType())},
           {"id", id},
@@ -86,70 +56,18 @@ nlohmann::json SetScrollRectCommand::toJson() const {
            {{"x", rect.x()}, {"y", rect.y()}, {"width", rect.width()}, {"height", rect.height()}}}};
 }
 
-// AddChildCommand 的实现
-void AddChildCommand::execute(
-    std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
-  auto rd_layer = idToRDLayerMap[this->id];
-  auto childRDLayer = idToRDLayerMap[childId];
-  if (rd_layer && childRDLayer) {
-    rd_layer->layer_->addChild(childRDLayer->layer_);
-  }
-}
-
-nlohmann::json AddChildCommand::toJson() const {
-  return {{"type", static_cast<int>(getType())}, {"parentId", id}, {"childId", childId}};
-}
-// SetNameCommand 的实现
-void SetNameCommand::execute(
-    std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
-  if (auto rd_layer = idToRDLayerMap[this->id]) {
-    rd_layer->layer_->setName(name);
-  }
-}
-
 nlohmann::json SetNameCommand::toJson() const {
   return {{"type", static_cast<int>(getType())}, {"id", id}, {"name", name}};
-}
-// SetAlphaCommand 的实现
-void SetAlphaCommand::execute(
-    std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) {
-  if (auto rd_layer = idToRDLayerMap[this->id]) {
-    rd_layer->layer_->setAlpha(alpha);
-  }
 }
 
 nlohmann::json SetAlphaCommand::toJson() const {
   return {{"type", static_cast<int>(getType())}, {"id", id}, {"alpha", alpha}};
 }
+
 // RDLayer 的静态方法：Replay（根据 JSON 字符串）
-std::shared_ptr<RDLayer> RDLayer::Replay(const std::string& jsonStr) {
-  json j = json::parse(jsonStr);
-  std::unordered_map<std::string, std::shared_ptr<RDLayer>> idToRDLayerMap;
-
-  // 反序列化并执行 commands
-  std::vector<std::unique_ptr<Command>> deserializedCommands;
-  for (const auto& cmdJson : j["commands"]) {
-    deserializedCommands.emplace_back(Command::fromJson(cmdJson));
-  }
-
-  std::shared_ptr<RDLayer> rootRDLayer = nullptr;
-
-  for (const auto& command : deserializedCommands) {
-    command->execute(idToRDLayerMap);
-    if (!rootRDLayer && command->getType() == CommandType::MakeCommand) {
-      rootRDLayer = idToRDLayerMap[command->id];
-    }
-  }
-
-  // 递归反序列化并添加子层
-  for (const auto& childJson : j["children"]) {
-    std::string childStr = childJson.dump();
-    std::shared_ptr<RDLayer> childLayer = Replay(childStr);
-    if (rootRDLayer && childLayer) {
-      rootRDLayer->addChild(childLayer);
-    }
-  }
-
+std::shared_ptr<RDLayer> RDLayer::MakeFrom(const std::string& jsonStr) {
+  std::shared_ptr<RDLayer> rootRDLayer = Make();
+  rootRDLayer->configFrom(jsonStr);
   return rootRDLayer;
 }
 
@@ -157,9 +75,30 @@ std::shared_ptr<RDLayer> RDLayer::Replay(const std::string& jsonStr) {
 std::shared_ptr<RDLayer> RDLayer::Make() {
   auto layer = std::make_shared<RDLayer>();
   layer->id_ = "RDLayer_" + std::to_string(++s_idCounter);
-  layer->commands_.emplace_back(std::make_unique<MakeCommand>(layer->id_));
   layer->layer_ = Layer::Make();
   return layer;
+}
+
+void RDLayer::configFrom(const std::string& jsonStr) {
+
+  json j = json::parse(jsonStr);
+
+  // 反序列化并执行 commands
+  for (const auto& cmdJson : j["commands"]) {
+    auto command = Command::fromJson(cmdJson);
+    command->execute(this);
+  }
+  // 递归反序列化并添加子层
+  for (const auto& childJson : j["children"]) {
+    std::string childId = childJson["id"].get<std::string>();
+    auto it = childrenMap_.find(childId);
+    if (it != childrenMap_.end()) {
+      it->second->configFrom(childJson.dump());
+    } else {
+      auto child = MakeFrom(childJson.dump());
+      addChild(child);
+    }
+  }
 }
 
 // 实现 getId 方法
@@ -167,24 +106,26 @@ const std::string& RDLayer::getId() const {
   return id_;
 }
 
-
 // SerializeCommands 方法
 std::string RDLayer::serializeCommands() {
-    json j_object;
-    
-    // 添加 commands 字段
-    j_object["commands"] = json::array();
-    for (const auto& cmd : commands_) {
-        j_object["commands"].push_back(cmd->toJson());
-    }
+  json j_object;
 
-    // 添加 children 字段，并递归序列化子层
-    j_object["children"] = json::array();
-    for (const auto& child : children_) {
-        j_object["children"].push_back(json::parse(child->serializeCommands()));
-    }
+  // 添加自己的 id
+  j_object["id"] = id_;
 
-    return j_object.dump();
+  // 添加 commands 字段
+  j_object["commands"] = json::array();
+  for (const auto& cmd : commands_) {
+    j_object["commands"].push_back(cmd->toJson());
+  }
+
+  // 添加 children 字段，并递归序列化子层
+  j_object["children"] = json::array();
+  for (const auto& [childId, child] : childrenMap_) {
+    j_object["children"].push_back(json::parse(child->serializeCommands()));
+  }
+
+  return j_object.dump();
 }
 
 // RDLayer 的析构函数
@@ -207,10 +148,11 @@ void RDLayer::setScrollRect(const Rect& rect) {
   layer_->setScrollRect(rect);
 }
 
-// 修改 addChild 方法，确保传递的是子层的 ID，并存储子层
+// 修改 addChild 方法，使用有序的map存储子层
 bool RDLayer::addChild(const std::shared_ptr<RDLayer>& child) {
   layer_->addChild(child->layer_);
-  children_.emplace_back(child);
+  // 使用 childrenMap_ 进行管理
+  childrenMap_[child->getId()] = child;
   return true;
 }
 

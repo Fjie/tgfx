@@ -1,4 +1,3 @@
-
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //
 //  Tencent is pleased to support the open source community by making tgfx available.
@@ -30,9 +29,7 @@ namespace tgfx {
 
 // 定义 CommandType 枚举
 enum class CommandType {
-  MakeCommand,
   SetScrollRectCommand,
-  AddChildCommand,
   SetNameCommand,
   SetAlphaCommand
 };
@@ -52,28 +49,13 @@ struct Command {
   // 序列化命令为 JSON
   virtual nlohmann::json toJson() const = 0;
 
-  // 执行命令
-  virtual void execute(
-      std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) = 0;
+  // 修改执行命令的接口，接受 RDLayer*
+  virtual void execute(RDLayer* rdLayer) = 0;
 
   // 反序列化命令
   static std::unique_ptr<Command> fromJson(const nlohmann::json& j);
 };
 
-// MakeCommand 的定义
-struct MakeCommand : Command {
-  explicit MakeCommand(const std::string& uniqueId) {
-    this->id = uniqueId;
-  }
-
-  CommandType getType() const override {
-    return CommandType::MakeCommand;
-  }
-
-  nlohmann::json toJson() const override;
-
-  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
-};
 
 // SetScrollRectCommand 的定义
 struct SetScrollRectCommand : Command {
@@ -89,26 +71,13 @@ struct SetScrollRectCommand : Command {
 
   nlohmann::json toJson() const override;
 
-  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
+  void execute(RDLayer* rdLayer) override;
 };
 
-// AddChildCommand 的定义
-struct AddChildCommand : Command {
-  std::string childId;
-
-  AddChildCommand(const std::string& inParentId, const std::string& inChildId)
-      : childId(inChildId) {
-    this->id = inParentId;
-  }
-
-  CommandType getType() const override {
-    return CommandType::AddChildCommand;
-  }
-
-  nlohmann::json toJson() const override;
-
-  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
-};
+// SetScrollRectCommand 的实现
+void SetScrollRectCommand::execute(RDLayer* rdLayer) {
+  rdLayer->setScrollRect(rect);
+}
 
 // SetNameCommand 的定义
 struct SetNameCommand : Command {
@@ -124,8 +93,13 @@ struct SetNameCommand : Command {
 
   nlohmann::json toJson() const override;
 
-  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
+  void execute(RDLayer* rdLayer) override;
 };
+
+// SetNameCommand 的实现
+void SetNameCommand::execute(RDLayer* rdLayer) {
+  rdLayer->setName(name);
+}
 
 // SetAlphaCommand 的定义
 struct SetAlphaCommand : Command {
@@ -141,7 +115,12 @@ struct SetAlphaCommand : Command {
 
   nlohmann::json toJson() const override;
 
-  void execute(std::unordered_map<std::string, std::shared_ptr<RDLayer>>& idToRDLayerMap) override;
+  void execute(RDLayer* rdLayer) override;
 };
+
+// SetAlphaCommand 的实现
+void SetAlphaCommand::execute(RDLayer* rdLayer) {
+  rdLayer->setAlpha(alpha);
+}
 
 }  // namespace tgfx
