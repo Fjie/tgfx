@@ -68,6 +68,23 @@ TGFX_TEST(LayerTest, LayerRecord) {
   // 新增验证 name 和 alpha 属性
   EXPECT_EQ(replayRDLayer->layer_->name(), "RDLayer");
   EXPECT_EQ(replayRDLayer->layer_->alpha(), 0.5f);
+
+  // 再次操作 rdLayer
+  rdLayer->setAlpha(0.8f);
+  rdLayer->setName("UpdatedRDLayer");
+
+  // 再次序列化
+  std::string updated_json_str = rdLayer->serializeCommands();
+  // 打印更新后的json
+  std::cout << updated_json_str << std::endl;
+
+  // 调用 replayRDLayer 的 configFromJson 方法
+  replayRDLayer->configFrom(updated_json_str);
+
+  // 验证命令正常还原
+  EXPECT_EQ(replayRDLayer->layer_->alpha(), 0.8f);
+  EXPECT_EQ(replayRDLayer->layer_->name(), "UpdatedRDLayer");
+
 }
 
 }  // namespace tgfx
