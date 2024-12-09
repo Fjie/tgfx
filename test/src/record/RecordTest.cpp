@@ -72,6 +72,19 @@ TGFX_TEST(LayerTest, LayerRecord) {
   EXPECT_EQ(replayRDLayer->layer_->alpha(), 0.8f);
   EXPECT_EQ(replayRDLayer->layer_->name(), "UpdatedRDLayer");
 
+  // 构建一个新的layer，设置scrollRect，然后加到rdLayer中，序列化，反序列化，验证scrollRect
+  auto rdLayer3 = RDLayer::Make();
+  rdLayer3->setScrollRect({150, 250, 350, 450});
+  rdLayer->addChild(rdLayer3);
+
+  std::string new_json_str = rdLayer->serializeCommands();
+  std::cout << new_json_str << std::endl;
+  auto replayRDLayerNew = RDLayer::MakeFrom(new_json_str);
+
+  EXPECT_EQ(replayRDLayerNew->layer_->children().size(),
+            static_cast<std::vector<Layer>::size_type>(2));
+  EXPECT_EQ(replayRDLayerNew->layer_->children()[1]->scrollRect(), Rect::MakeLTRB(150, 250, 350, 450));
+
 }
 
 }  // namespace tgfx
