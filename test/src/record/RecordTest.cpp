@@ -18,7 +18,7 @@
 
 #include <math.h>
 #include <vector>
-#include "RDLayer.h"
+#include "include/RDLayer.h"
 #include "core/utils/Profiling.h"
 #include "tgfx/layers/Layer.h"
 #include "utils/TestUtils.h"
