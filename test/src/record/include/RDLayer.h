@@ -60,15 +60,12 @@ class RDLayer {
   std::shared_ptr<Layer> layer_;
 
   // 添加唯一ID成员变量
-  std::string id_;
-
-  // 添加获取ID的方法
-  const std::string& getId() const;
+  int id_;
 
  private:
   // 添加命令队列作为成员变量
   std::vector<std::unique_ptr<Command>> commands_;
   // 使用有序的map存储子层
-  std::map<std::string, std::shared_ptr<RDLayer>> childrenMap_;
+  std::map<int, std::shared_ptr<RDLayer>> childrenMap_;
 };
 }  // namespace tgfx

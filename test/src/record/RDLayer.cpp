@@ -38,7 +38,7 @@ std::shared_ptr<RDLayer> RDLayer::MakeFrom(const std::string& jsonStr) {
 // 修改 Make 方法，分配唯一ID并传递给 MakeCommand
 std::shared_ptr<RDLayer> RDLayer::Make() {
   auto layer = std::make_shared<RDLayer>();
-  layer->id_ = "RDLayer_" + std::to_string(++s_idCounter);
+  layer->id_ = ++s_idCounter; // 修改为数字ID
   layer->layer_ = Layer::Make();
   return layer;
 }
@@ -54,7 +54,7 @@ void RDLayer::configFrom(const std::string& jsonStr) {
   }
   // 递归反序列化并添加子层
   for (const auto& childJson : j["children"]) {
-    std::string childId = childJson["id"].get<std::string>();
+    int childId = childJson["id"].get<int>();
     auto it = childrenMap_.find(childId);
     if (it != childrenMap_.end()) {
       it->second->configFrom(childJson.dump());
@@ -65,10 +65,6 @@ void RDLayer::configFrom(const std::string& jsonStr) {
   }
 }
 
-// 实现 getId 方法
-const std::string& RDLayer::getId() const {
-  return id_;
-}
 
 // SerializeCommands 方法
 std::string RDLayer::serializeCommands() {
@@ -117,7 +113,7 @@ void RDLayer::setScrollRect(const Rect& rect) {
 bool RDLayer::addChild(const std::shared_ptr<RDLayer>& child) {
   layer_->addChild(child->layer_);
   // 使用 childrenMap_ 进行管理
-  childrenMap_[child->getId()] = child;
+  childrenMap_[child->id_] = child;
   return true;
 }
 
