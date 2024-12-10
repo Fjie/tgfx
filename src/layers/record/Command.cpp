@@ -1,8 +1,7 @@
-#include "record/Command.h"
+#include "Command.h"
 #include <nlohmann/json.hpp>
 #include <stdexcept>
-#include "record/include/RDLayer.h"
-
+#include "tgfx/layers/record/RDLayer.h"
 using json = nlohmann::json;
 
 namespace tgfx {

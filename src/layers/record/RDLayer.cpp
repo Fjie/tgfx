@@ -14,12 +14,12 @@
 //  either express or implied. See the License for the specific language governing permissions
 //  and limitations under the License.
 //
-///////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "include/RDLayer.h"
+#include <tgfx/layers/record/RDLayer.h>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
-#include "record/Command.h"
+#include "Command.h"
 
 using json = nlohmann::json;
 
