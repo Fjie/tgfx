@@ -1,3 +1,4 @@
+
 /////////////////////////////////////////////////////////////////////////////////////////////////
 //
 //  Tencent is pleased to support the open source community by making tgfx available.
@@ -16,14 +17,28 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-#pragma once
-
-#include <memory>
+#include "wgl/WGLProcGetter.h"
+#include <windows.h>
 
 namespace tgfx {
-class GLProcGetter {
- public:
-  virtual void* getProcAddress(const char name[]) const = 0;
-  static std::unique_ptr<GLProcGetter> Make();
-};
+
+void* WGLProcGetter::getProcAddress(const char name[]) const {
+  void* proc = reinterpret_cast<void*>(wglGetProcAddress(name));
+  if (proc == nullptr) {
+    HMODULE module = GetModuleHandleA("opengl32.dll");
+    if (module) {
+      proc = reinterpret_cast<void*>(GetProcAddress(module, name));
+    }
+  }
+  return proc;
+}
+
+std::unique_ptr<GLProcGetter> GLProcGetter::Make() {
+  #if defined(_WIN32)
+    return std::make_unique<WGLProcGetter>();
+  #else
+    return std::make_unique<EGLProcGetter>();
+  #endif
+}
+
 }  // namespace tgfx

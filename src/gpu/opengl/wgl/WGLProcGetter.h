@@ -1,3 +1,4 @@
+
 /////////////////////////////////////////////////////////////////////////////////////////////////
 //
 //  Tencent is pleased to support the open source community by making tgfx available.
@@ -18,12 +19,12 @@
 
 #pragma once
 
-#include <memory>
+#include "gpu/opengl/GLProcGetter.h"
+#include <windows.h>
 
 namespace tgfx {
-class GLProcGetter {
+class WGLProcGetter : public GLProcGetter {
  public:
-  virtual void* getProcAddress(const char name[]) const = 0;
-  static std::unique_ptr<GLProcGetter> Make();
+  void* getProcAddress(const char name[]) const override;
 };
 }  // namespace tgfx

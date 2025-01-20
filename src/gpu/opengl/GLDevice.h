@@ -1,3 +1,4 @@
+
 /////////////////////////////////////////////////////////////////////////////////////////////////
 //
 //  Tencent is pleased to support the open source community by making tgfx available.
@@ -18,12 +19,29 @@
 
 #pragma once
 
-#include <memory>
+#include "gpu/opengl/GLDevice.h"
+#include <Windows.h>
 
 namespace tgfx {
-class GLProcGetter {
+class WGLDevice : public GLDevice {
  public:
-  virtual void* getProcAddress(const char name[]) const = 0;
-  static std::unique_ptr<GLProcGetter> Make();
+  static std::shared_ptr<WGLDevice> Make(void* sharedContext);
+  static std::shared_ptr<WGLDevice> Wrap(HGLRC hglrc, HDC hdc, bool externallyOwned);
+
+  bool sharableWith(void* nativeContext) const override;
+
+ protected:
+  bool onMakeCurrent() override;
+  void onClearCurrent() override;
+
+ private:
+  WGLDevice(HGLRC hglrc, HDC hdc);
+  ~WGLDevice() override;
+
+  HGLRC hglrc;
+  HDC hdc;
+  bool externallyOwned;
+  HGLRC oldHglrc;
+  HDC oldHdc;
 };
 }  // namespace tgfx

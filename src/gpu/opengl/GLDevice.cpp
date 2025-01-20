@@ -59,6 +59,14 @@ std::shared_ptr<GLDevice> GLDevice::Get(void* nativeHandle) {
   return nullptr;
 }
 
+std::shared_ptr<GLDevice> GLDevice::Current() {
+  #if defined(_WIN32)
+    return WGLDevice::Current();
+  #else
+    return EGLDevice::Current();
+  #endif
+}
+
 GLDevice::GLDevice(void* nativeHandle) : nativeHandle(nativeHandle) {
   std::lock_guard<std::mutex> autoLock(deviceMapLocker);
   deviceMap[nativeHandle] = this;
