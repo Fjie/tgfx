@@ -219,30 +219,69 @@ void Canvas::drawCircle(float centerX, float centerY, float radius, const Paint&
 }
 
 void Canvas::drawRoundRect(const Rect& rect, float radiusX, float radiusY, const Paint& paint) {
+  // Fast path for small radii - render as normal rectangle
+  if (radiusX < 0.5f && radiusY < 0.5f) {
+    drawRect(rect, paint);
+    return;
+  }
+  
+  // Fast path for stroke mode - use path directly
+  if (paint.getStroke()) {
+    Path path = {};
+    path.addRoundRect(rect, radiusX, radiusY);
+    drawPath(path, paint);
+    return;
+  }
+  
+  // Empty rectangles don't need rendering
+  if (rect.isEmpty()) {
+    return;
+  }
+  
+  // Create RRect directly and bypass the extra function call
   RRect rRect = {};
-  rRect.setRectXY(rect, radiusX, radiusY);
-  drawRRect(rRect, paint);
+  rRect.rect = rect;
+  rRect.radii.x = radiusX;
+  rRect.radii.y = radiusY;
+  
+  // If there's an image filter, we need a separate layer
+  if (auto imageFilter = paint.getImageFilter()) {
+    AutoLayerForImageFilter autoLayer(this, std::move(imageFilter));
+    // Call directly to draw context to avoid another function call
+    drawContext->drawRRect(rRect, *mcState, paint.getFill());
+  } else {
+    // Direct draw to context
+    drawContext->drawRRect(rRect, *mcState, paint.getFill());
+  }
 }
 
 void Canvas::drawRRect(const RRect& rRect, const Paint& paint) {
+  // Fast path for no radii - render as normal rectangle
   auto& radii = rRect.radii;
   if (radii.x < 0.5f && radii.y < 0.5f) {
     drawRect(rRect.rect, paint);
     return;
   }
+  
+  // Fast path for stroke mode - use path directly
   if (paint.getStroke()) {
     Path path = {};
     path.addRRect(rRect);
     drawPath(path, paint);
     return;
   }
+  
+  // Empty rectangles don't need rendering
   if (rRect.rect.isEmpty()) {
     return;
   }
+  
+  // If there's an image filter, we need a separate layer
   if (auto imageFilter = paint.getImageFilter()) {
     AutoLayerForImageFilter autoLayer(this, std::move(imageFilter));
     drawContext->drawRRect(rRect, *mcState, paint.getFill());
   } else {
+    // Direct draw to context
     drawContext->drawRRect(rRect, *mcState, paint.getFill());
   }
 }

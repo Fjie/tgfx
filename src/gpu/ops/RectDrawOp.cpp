@@ -27,11 +27,14 @@
 
 namespace tgfx {
 static void WriteUByte4Color(float* vertices, int& index, const Color& color) {
-  auto bytes = reinterpret_cast<uint8_t*>(&vertices[index++]);
-  bytes[0] = static_cast<uint8_t>(color.red * 255);
-  bytes[1] = static_cast<uint8_t>(color.green * 255);
-  bytes[2] = static_cast<uint8_t>(color.blue * 255);
-  bytes[3] = static_cast<uint8_t>(color.alpha * 255);
+  // Faster direct bit packing without intermediate variable
+  uint32_t packedColor = 
+      (static_cast<uint32_t>(color.red * 255.0f) & 0xFF) |
+      ((static_cast<uint32_t>(color.green * 255.0f) & 0xFF) << 8) |
+      ((static_cast<uint32_t>(color.blue * 255.0f) & 0xFF) << 16) |
+      ((static_cast<uint32_t>(color.alpha * 255.0f) & 0xFF) << 24);
+  
+  *reinterpret_cast<uint32_t*>(&vertices[index++]) = packedColor;
 }
 
 class RectCoverageVertexProvider : public VertexProvider {
@@ -108,20 +111,118 @@ class RectNonCoverageVertexProvider : public VertexProvider {
 
   void getVertices(float* vertices) const override {
     auto index = 0;
-    for (auto& rectPaint : rectPaints) {
-      auto& viewMatrix = rectPaint->viewMatrix;
-      auto& rect = rectPaint->rect;
-      auto quad = Quad::MakeFrom(rect, &viewMatrix);
-      auto uvQuad = Quad::MakeFrom(rect);
-      for (size_t j = 4; j >= 1; --j) {
-        vertices[index++] = quad.point(j - 1).x;
-        vertices[index++] = quad.point(j - 1).y;
+    
+    // Optimize for single rectangle case (most common)
+    if (rectPaints.size() == 1) {
+      auto& rectPaint = rectPaints[0];
+      const auto& viewMatrix = rectPaint->viewMatrix;
+      const auto& rect = rectPaint->rect;
+      
+      // Pre-compute corner points
+      const float left = rect.left;
+      const float top = rect.top;
+      const float right = rect.right;
+      const float bottom = rect.bottom;
+      
+      // Create points array
+      Point corners[4];
+      corners[0].set(left, top);      // Top-left
+      corners[1].set(right, top);     // Top-right
+      corners[2].set(right, bottom);  // Bottom-right
+      corners[3].set(left, bottom);   // Bottom-left
+      
+      // Transform all points at once
+      viewMatrix.mapPoints(corners, corners, 4);
+      
+      // Pre-compute UV coordinates if needed
+      float uvCoords[8];
+      if (useUVCoord) {
+        uvCoords[0] = left;   uvCoords[1] = top;     // Top-left
+        uvCoords[2] = right;  uvCoords[3] = top;     // Top-right
+        uvCoords[4] = right;  uvCoords[5] = bottom;  // Bottom-right
+        uvCoords[6] = left;   uvCoords[7] = bottom;  // Bottom-left
+      }
+      
+      // Cache color value to avoid recomputation
+      uint32_t packedColor = 0;
+      if (hasColor) {
+        packedColor = 
+            (static_cast<uint32_t>(rectPaint->color.red * 255.0f) & 0xFF) |
+            ((static_cast<uint32_t>(rectPaint->color.green * 255.0f) & 0xFF) << 8) |
+            ((static_cast<uint32_t>(rectPaint->color.blue * 255.0f) & 0xFF) << 16) |
+            ((static_cast<uint32_t>(rectPaint->color.alpha * 255.0f) & 0xFF) << 24);
+      }
+      
+      // Generate vertices with optimized memory layout (in reverse order for better triangulation)
+      for (int i = 3; i >= 0; --i) {
+        // Position
+        vertices[index++] = corners[i].x;
+        vertices[index++] = corners[i].y;
+        
+        // UV coordinates
         if (useUVCoord) {
-          vertices[index++] = uvQuad.point(j - 1).x;
-          vertices[index++] = uvQuad.point(j - 1).y;
+          vertices[index++] = uvCoords[i*2];     // U
+          vertices[index++] = uvCoords[i*2+1];   // V
         }
+        
+        // Color
         if (hasColor) {
-          WriteUByte4Color(vertices, index, rectPaint->color);
+          *reinterpret_cast<uint32_t*>(&vertices[index++]) = packedColor;
+        }
+      }
+      
+      return;
+    }
+    
+    // Multiple rectangles path with optimizations
+    for (auto& rectPaint : rectPaints) {
+      const auto& viewMatrix = rectPaint->viewMatrix;
+      const auto& rect = rectPaint->rect;
+      
+      // Pre-compute corner points
+      const float left = rect.left;
+      const float top = rect.top;
+      const float right = rect.right;
+      const float bottom = rect.bottom;
+      
+      // Create points array for transformation
+      Point corners[4];
+      corners[0].set(left, top);      // Top-left
+      corners[1].set(right, top);     // Top-right
+      corners[2].set(right, bottom);  // Bottom-right
+      corners[3].set(left, bottom);   // Bottom-left
+      
+      // Transform all points at once
+      viewMatrix.mapPoints(corners, corners, 4);
+      
+      // Cache color if using variable colors
+      uint32_t packedColor = 0;
+      if (hasColor) {
+        packedColor = 
+            (static_cast<uint32_t>(rectPaint->color.red * 255.0f) & 0xFF) |
+            ((static_cast<uint32_t>(rectPaint->color.green * 255.0f) & 0xFF) << 8) |
+            ((static_cast<uint32_t>(rectPaint->color.blue * 255.0f) & 0xFF) << 16) |
+            ((static_cast<uint32_t>(rectPaint->color.alpha * 255.0f) & 0xFF) << 24);
+      }
+      
+      // Generate vertices in reverse order
+      for (int i = 3; i >= 0; --i) {
+        // Position
+        vertices[index++] = corners[i].x;
+        vertices[index++] = corners[i].y;
+        
+        // UV coordinates
+        if (useUVCoord) {
+          // Use original rect coordinates for UVs
+          const float u = (i == 0 || i == 3) ? left : right;   // left for points 0,3; right for 1,2
+          const float v = (i == 0 || i == 1) ? top : bottom;   // top for points 0,1; bottom for 2,3
+          vertices[index++] = u;
+          vertices[index++] = v;
+        }
+        
+        // Color
+        if (hasColor) {
+          *reinterpret_cast<uint32_t*>(&vertices[index++]) = packedColor;
         }
       }
     }

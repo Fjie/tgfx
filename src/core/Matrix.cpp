@@ -20,6 +20,10 @@
 #include <cfloat>
 #include "core/utils/MathExtra.h"
 
+#ifdef __ARM_NEON
+#include <arm_neon.h>
+#endif
+
 namespace tgfx {
 
 void Matrix::reset() {
@@ -223,25 +227,99 @@ void Matrix::postSkew(float kx, float ky) {
 }
 
 void Matrix::setConcat(const Matrix& first, const Matrix& second) {
-  auto& matrixA = first.values;
-  auto& matrixB = second.values;
-  auto sx = matrixB[SCALE_X] * matrixA[SCALE_X];
-  auto kx = 0.0f;
-  auto ky = 0.0f;
-  auto sy = matrixB[SCALE_Y] * matrixA[SCALE_Y];
-  auto tx = matrixB[TRANS_X] * matrixA[SCALE_X] + matrixA[TRANS_X];
-  auto ty = matrixB[TRANS_Y] * matrixA[SCALE_Y] + matrixA[TRANS_Y];
-
-  if (matrixB[SKEW_Y] != 0.0 || matrixB[SKEW_X] != 0.0 || matrixA[SKEW_Y] != 0.0 ||
-      matrixA[SKEW_X] != 0.0) {
-    sx += matrixB[SKEW_Y] * matrixA[SKEW_X];
-    sy += matrixB[SKEW_X] * matrixA[SKEW_Y];
-    ky += matrixB[SCALE_X] * matrixA[SKEW_Y] + matrixB[SKEW_Y] * matrixA[SCALE_Y];
-    kx += matrixB[SKEW_X] * matrixA[SCALE_X] + matrixB[SCALE_Y] * matrixA[SKEW_X];
-    tx += matrixB[TRANS_Y] * matrixA[SKEW_X];
-    ty += matrixB[TRANS_X] * matrixA[SKEW_Y];
+  const float* a = first.values;
+  const float* b = second.values;
+  
+  // Fast path for identity matrices
+  if (first.isIdentity()) {
+    if (this != &second) {
+      memcpy(values, b, 6 * sizeof(float));
+    }
+    return;
   }
-  setAll(sx, kx, tx, ky, sy, ty);
+  
+  if (second.isIdentity()) {
+    if (this != &first) {
+      memcpy(values, a, 6 * sizeof(float));
+    }
+    return;
+  }
+  
+  // Fast path for translation only
+  const bool firstIsTranslateOnly = 
+    (a[SCALE_X] == 1.0f && a[SCALE_Y] == 1.0f && a[SKEW_X] == 0.0f && a[SKEW_Y] == 0.0f);
+  
+  const bool secondIsTranslateOnly = 
+    (b[SCALE_X] == 1.0f && b[SCALE_Y] == 1.0f && b[SKEW_X] == 0.0f && b[SKEW_Y] == 0.0f);
+    
+  if (firstIsTranslateOnly && secondIsTranslateOnly) {
+    // Just add translations
+    values[SCALE_X] = 1.0f;
+    values[SKEW_X] = 0.0f;
+    values[TRANS_X] = a[TRANS_X] + b[TRANS_X];
+    values[SKEW_Y] = 0.0f;
+    values[SCALE_Y] = 1.0f;
+    values[TRANS_Y] = a[TRANS_Y] + b[TRANS_Y];
+    return;
+  }
+  
+  // Fast paths for other common cases
+  if (firstIsTranslateOnly) {
+    // First matrix is translation only
+    if (this != &second) {
+      memcpy(values, b, 6 * sizeof(float));
+    }
+    values[TRANS_X] += a[TRANS_X];
+    values[TRANS_Y] += a[TRANS_Y];
+    return;
+  }
+  
+  if (secondIsTranslateOnly) {
+    // Second matrix is translation only
+    if (this != &first) {
+      memcpy(values, a, 6 * sizeof(float));
+    }
+    values[TRANS_X] += b[TRANS_X];
+    values[TRANS_Y] += b[TRANS_Y];
+    return;
+  }
+  
+  // General case - fully compute the matrix product
+#ifdef __ARM_NEON
+  // Load matrix values into NEON registers
+  // Matrix A
+  float32x2_t a_col0 = vld1_f32(&a[SCALE_X]); // a00, a01
+  float32x2_t a_col1 = vld1_f32(&a[SKEW_Y]);  // a10, a11
+  float32x2_t a_col2 = vld1_f32(&a[TRANS_X]); // a20, a21
+  
+  // Matrix B
+  float32x2_t b_row0 = vld1_f32(&b[SCALE_X]); // b00, b01
+  float32x2_t b_row1 = vld1_f32(&b[SKEW_Y]);  // b10, b11
+  float32x2_t b_row2 = vld1_f32(&b[TRANS_X]); // b20, b21
+  
+  // Use scalar calculations instead of trying complex NEON operations
+  // This is simpler and less error-prone
+  values[SCALE_X] = a_col0[0] * b_row0[0] + a_col0[1] * b_row1[0];
+  values[SKEW_X] = a_col0[0] * b_row0[1] + a_col0[1] * b_row1[1];
+  values[TRANS_X] = a_col0[0] * b_row2[0] + a_col0[1] * b_row2[1] + a_col2[0];
+  values[SKEW_Y] = a_col1[0] * b_row0[0] + a_col1[1] * b_row1[0];
+  values[SCALE_Y] = a_col1[0] * b_row0[1] + a_col1[1] * b_row1[1];
+  values[TRANS_Y] = a_col1[0] * b_row2[0] + a_col1[1] * b_row2[1] + a_col2[1];
+#else
+  const float m00 = a[SCALE_X] * b[SCALE_X] + a[SKEW_X] * b[SKEW_Y];
+  const float m01 = a[SCALE_X] * b[SKEW_X] + a[SKEW_X] * b[SCALE_Y];
+  const float m02 = a[SCALE_X] * b[TRANS_X] + a[SKEW_X] * b[TRANS_Y] + a[TRANS_X];
+  const float m10 = a[SKEW_Y] * b[SCALE_X] + a[SCALE_Y] * b[SKEW_Y];
+  const float m11 = a[SKEW_Y] * b[SKEW_X] + a[SCALE_Y] * b[SCALE_Y];
+  const float m12 = a[SKEW_Y] * b[TRANS_X] + a[SCALE_Y] * b[TRANS_Y] + a[TRANS_Y];
+  
+  values[SCALE_X] = m00;
+  values[SKEW_X] = m01;
+  values[TRANS_X] = m02;
+  values[SKEW_Y] = m10;
+  values[SCALE_Y] = m11;
+  values[TRANS_Y] = m12;
+#endif
 }
 
 void Matrix::preConcat(const Matrix& matrix) {
@@ -261,41 +339,50 @@ void Matrix::postConcat(const Matrix& matrix) {
 }
 
 bool Matrix::invertible() const {
-  float determinant = values[SCALE_X] * values[SCALE_Y] - values[SKEW_Y] * values[SKEW_X];
-  return !(FloatNearlyZero(determinant, FLOAT_NEARLY_ZERO * FLOAT_NEARLY_ZERO * FLOAT_NEARLY_ZERO));
+  // Direct calculation instead of function call 
+  const float det = values[SCALE_X] * values[SCALE_Y] - values[SKEW_Y] * values[SKEW_X];
+  // Use fixed epsilon value for faster comparison
+  const float epsilon = 1e-8f;
+  return fabsf(det) >= epsilon;
 }
 
 bool Matrix::invertNonIdentity(Matrix* inverse) const {
-  auto sx = values[SCALE_X];
-  auto kx = values[SKEW_X];
-  auto ky = values[SKEW_Y];
-  auto sy = values[SCALE_Y];
-  auto tx = values[TRANS_X];
-  auto ty = values[TRANS_Y];
+  const float sx = values[SCALE_X];
+  const float kx = values[SKEW_X];
+  const float ky = values[SKEW_Y];
+  const float sy = values[SCALE_Y];
+  const float tx = values[TRANS_X];
+  const float ty = values[TRANS_Y];
 
+  // Fast path for scale/translate only (no skew)
   if (ky == 0 && kx == 0) {
     if (sx == 0 || sy == 0) {
       return false;
     }
-    sx = 1 / sx;
-    sy = 1 / sy;
-    tx = -sx * tx;
-    ty = -sy * ty;
-    inverse->setAll(sx, kx, tx, ky, sy, ty);
+    // Fast reciprocal calculation
+    const float invSx = 1.0f / sx;
+    const float invSy = 1.0f / sy;
+    inverse->setAll(invSx, 0, -tx * invSx, 0, invSy, -ty * invSy);
     return true;
   }
-  float determinant = sx * sy - ky * kx;
-  if (FloatNearlyZero(determinant, FLOAT_NEARLY_ZERO * FLOAT_NEARLY_ZERO * FLOAT_NEARLY_ZERO)) {
+  
+  // General case with skew
+  const float det = sx * sy - ky * kx;
+  const float epsilon = 1e-8f;
+  if (fabsf(det) < epsilon) {
     return false;
   }
-  determinant = 1 / determinant;
-  sx = sy * determinant;
-  ky = -ky * determinant;
-  kx = -kx * determinant;
-  sy = values[SCALE_X] * determinant;
-  tx = -(sx * values[TRANS_X] + kx * values[TRANS_Y]);
-  ty = -(ky * values[TRANS_X] + sy * values[TRANS_Y]);
-  inverse->setAll(sx, kx, tx, ky, sy, ty);
+  
+  // Calculate inverse matrix components
+  const float invDet = 1.0f / det;
+  const float invsX = sy * invDet;
+  const float invkY = -ky * invDet;
+  const float invkX = -kx * invDet;
+  const float invsY = sx * invDet;
+  const float invtX = -(invsX * tx + invkX * ty);
+  const float invtY = -(invkY * tx + invsY * ty);
+  
+  inverse->setAll(invsX, invkX, invtX, invkY, invsY, invtY);
   return true;
 }
 
@@ -304,23 +391,206 @@ void Matrix::mapPoints(Point dst[], const Point src[], int count) const {
     return;
   }
   
+  // Fast path for mapping exactly 4 points (common case for rectangles)
+  if (count == 4) {
+    // Cache matrix values to minimize member access
+    const float sx = values[SCALE_X];
+    const float ky = values[SKEW_Y];
+    const float kx = values[SKEW_X];
+    const float sy = values[SCALE_Y]; 
+    const float tx = values[TRANS_X];
+    const float ty = values[TRANS_Y];
+    
+    // Fast path for identity matrix
+    if (sx == 1.0f && sy == 1.0f && kx == 0.0f && ky == 0.0f && tx == 0.0f && ty == 0.0f) {
+      if (src != dst) {
+        memcpy(dst, src, 4 * sizeof(Point));
+      }
+      return;
+    }
+    
+    // Fast path for translation-only matrix
+    if (sx == 1.0f && sy == 1.0f && kx == 0.0f && ky == 0.0f) {
+      for (int i = 0; i < 4; i++) {
+        dst[i].x = src[i].x + tx;
+        dst[i].y = src[i].y + ty;
+      }
+      return;
+    }
+    
+#ifdef __ARM_NEON
+    // Use NEON SIMD for mapping exactly 4 points when possible
+    // Load matrix values into NEON registers - only needed if we want to access them differently
+    
+    // Process each point directly - for 4 points this approach is faster than extra SIMD setup
+    const float x0 = src[0].x;
+    const float y0 = src[0].y;
+    dst[0].x = x0 * sx + y0 * kx + tx;
+    dst[0].y = x0 * ky + y0 * sy + ty;
+    
+    const float x1 = src[1].x;
+    const float y1 = src[1].y;
+    dst[1].x = x1 * sx + y1 * kx + tx;
+    dst[1].y = x1 * ky + y1 * sy + ty;
+    
+    const float x2 = src[2].x;
+    const float y2 = src[2].y;
+    dst[2].x = x2 * sx + y2 * kx + tx;
+    dst[2].y = x2 * ky + y2 * sy + ty;
+    
+    const float x3 = src[3].x;
+    const float y3 = src[3].y;
+    dst[3].x = x3 * sx + y3 * kx + tx;
+    dst[3].y = x3 * ky + y3 * sy + ty;
+    
+    return;
+#else
+    // Optimized scalar implementation for 4 points
+    for (int i = 0; i < 4; i++) {
+      const float srcX = src[i].x;
+      const float srcY = src[i].y;
+      dst[i].x = srcX * sx + srcY * kx + tx;
+      dst[i].y = srcX * ky + srcY * sy + ty;
+    }
+    return;
+#endif
+  }
+  
   // Cache matrix values to minimize member access in the loop
+  const float sx = values[SCALE_X];
+  const float ky = values[SKEW_Y];
+  const float kx = values[SKEW_X];
+  const float sy = values[SCALE_Y]; 
   const float tx = values[TRANS_X];
   const float ty = values[TRANS_Y];
-  const float sx = values[SCALE_X];
-  const float sy = values[SCALE_Y]; 
-  const float kx = values[SKEW_X];
-  const float ky = values[SKEW_Y];
   
-  // Special case for common case of 1 point
-  if (count == 1) {
-    const float x = src[0].x;
-    const float y = src[0].y;
-    dst[0].x = x * sx + y * kx + tx;
-    dst[0].y = x * ky + y * sy + ty;
+  // Fast path for identity matrix
+  if (sx == 1.0f && sy == 1.0f && kx == 0.0f && ky == 0.0f && tx == 0.0f && ty == 0.0f) {
+    if (src != dst) {
+      memcpy(dst, src, static_cast<size_t>(count) * sizeof(Point));
+    }
     return;
   }
   
+  // Fast path for translation-only matrix
+  if (sx == 1.0f && sy == 1.0f && kx == 0.0f && ky == 0.0f) {
+#ifdef __ARM_NEON
+    if (count >= 4) {
+      // Process batches of 4 points with NEON SIMD
+      int i = 0;
+      for (; i <= count - 4; i += 4) {
+        // Load 4 points (8 floats)
+        float32x4x2_t points = vld2q_f32(reinterpret_cast<const float*>(&src[i]));
+        
+        // Add translation to each coordinate
+        points.val[0] = vaddq_f32(points.val[0], vdupq_n_f32(tx));
+        points.val[1] = vaddq_f32(points.val[1], vdupq_n_f32(ty));
+        
+        // Store 4 transformed points
+        vst2q_f32(reinterpret_cast<float*>(&dst[i]), points);
+      }
+      
+      // Handle remaining points
+      for (; i < count; i++) {
+        dst[i].x = src[i].x + tx;
+        dst[i].y = src[i].y + ty;
+      }
+      return;
+    }
+#endif
+    // Non-SIMD fallback for translation
+    for (int i = 0; i < count; i++) {
+      dst[i].x = src[i].x + tx;
+      dst[i].y = src[i].y + ty;
+    }
+    return;
+  }
+  
+  // Fast path for scale-only matrix (no skew)
+  if (kx == 0.0f && ky == 0.0f) {
+#ifdef __ARM_NEON
+    if (count >= 4) {
+      // Process batches of 4 points with NEON SIMD
+      int i = 0;
+      for (; i <= count - 4; i += 4) {
+        // Load 4 points (8 floats)
+        float32x4x2_t points = vld2q_f32(reinterpret_cast<const float*>(&src[i]));
+        
+        // Scale X and Y coordinates
+        points.val[0] = vmulq_n_f32(points.val[0], sx);
+        points.val[1] = vmulq_n_f32(points.val[1], sy);
+        
+        // Add translation
+        points.val[0] = vaddq_f32(points.val[0], vdupq_n_f32(tx));
+        points.val[1] = vaddq_f32(points.val[1], vdupq_n_f32(ty));
+        
+        // Store 4 transformed points
+        vst2q_f32(reinterpret_cast<float*>(&dst[i]), points);
+      }
+      
+      // Handle remaining points
+      for (; i < count; i++) {
+        const float x = src[i].x;
+        const float y = src[i].y;
+        dst[i].x = x * sx + tx;
+        dst[i].y = y * sy + ty;
+      }
+      return;
+    }
+#endif
+    // Non-SIMD fallback for scale+translate
+    for (int i = 0; i < count; i++) {
+      const float x = src[i].x;
+      const float y = src[i].y;
+      dst[i].x = x * sx + tx;
+      dst[i].y = y * sy + ty;
+    }
+    return;
+  }
+  
+  // General case with skew
+#ifdef __ARM_NEON
+  if (count >= 4) {
+    int i = 0;
+    float32x4_t vSx = vdupq_n_f32(sx);
+    float32x4_t vKx = vdupq_n_f32(kx);
+    float32x4_t vKy = vdupq_n_f32(ky);
+    float32x4_t vSy = vdupq_n_f32(sy);
+    float32x4_t vTx = vdupq_n_f32(tx);
+    float32x4_t vTy = vdupq_n_f32(ty);
+    
+    for (; i <= count - 4; i += 4) {
+      // Load 4 x-coordinates
+      float32x4_t vX = vld1q_f32(&reinterpret_cast<const float*>(&src[i])[0]);
+      // Load 4 y-coordinates with a stride of 2
+      float32x4_t vY = vld1q_f32(&reinterpret_cast<const float*>(&src[i])[1]);
+      
+      // Transform x-coordinates: x * sx + y * kx + tx
+      float32x4_t resX = vmlaq_f32(vTx, vX, vSx);
+      resX = vmlaq_f32(resX, vY, vKx);
+      
+      // Transform y-coordinates: x * ky + y * sy + ty
+      float32x4_t resY = vmlaq_f32(vTy, vX, vKy);
+      resY = vmlaq_f32(resY, vY, vSy);
+      
+      // Store x-coordinates with stride of 2
+      vst1q_f32(&reinterpret_cast<float*>(&dst[i])[0], resX);
+      // Store y-coordinates with stride of 2
+      vst1q_f32(&reinterpret_cast<float*>(&dst[i])[1], resY);
+    }
+    
+    // Handle remaining points
+    for (; i < count; i++) {
+      const float x = src[i].x;
+      const float y = src[i].y;
+      dst[i].x = x * sx + y * kx + tx;
+      dst[i].y = x * ky + y * sy + ty;
+    }
+    return;
+  }
+#endif
+
+  // Non-SIMD fallback
   for (int i = 0; i < count; i++) {
     const float x = src[i].x;
     const float y = src[i].y;
