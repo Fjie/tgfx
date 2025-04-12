@@ -58,45 +58,9 @@ if [ -f "../traces/time_profile_${TIMESTAMP}.xml" ]; then
     echo "时间戳：$(date)"
     echo ""
 
-    echo "1. 按模块分类的耗时函数 TOP10："
-    echo "------------------------------------------------------"
-
-    # 提取和处理tgfx相关函数
-    echo "## 核心渲染 (Core Rendering)："
-    grep -A 3 "tgfx::Rect\|tgfx::Canvas\|tgfx::Paint\|tgfx::Fill\|tgfx::Shape" "$XML_FILE" |
-      grep -B 3 'name=' |
-      grep 'name=' |
-      sed 's/.*name="\([^"]*\)".*/\1/' |
-      grep "tgfx::" |
-      sort | uniq -c | sort -nr | head -5 |
-      awk '{printf "  • %-60s %5d 次调用\n", $2, $1}'
-
-    echo ""
-    echo "## GPU操作 (GPU Operations)："
-    grep -A 3 "tgfx::GL\|tgfx::Context\|tgfx::Device\|tgfx::Surface\|tgfx::Texture" "$XML_FILE" |
-      grep -B 3 'name=' |
-      grep 'name=' |
-      sed 's/.*name="\([^"]*\)".*/\1/' |
-      grep "tgfx::" |
-      sort | uniq -c | sort -nr | head -5 |
-      awk '{printf "  • %-60s %5d 次调用\n", $2, $1}'
-
-    echo ""
-    echo "## 内存管理 (Memory Operations)："
-    grep -A 3 "allocator\|vector\|shared_ptr" "$XML_FILE" |
-      grep -B 3 'name=' |
-      grep 'name=' |
-      sed 's/.*name="\([^"]*\)".*/\1/' |
-      grep -v "backtrace" |
-      sort | uniq -c | sort -nr | head -5 |
-      awk '{printf "  • %-60s %5d 次调用\n", $2, $1}'
-
-    echo ""
-    echo "2. 热点调用栈分析："
+    echo "热点调用栈分析："
     echo "------------------------------------------------------"
     # 提取最热点的调用栈（包含tgfx的函数）
-    echo "## 最耗时的TGFX相关调用："
-
     # 使用grep和awk从XML中提取关键调用栈
     grep -A 15 -B 5 '<row>' "$XML_FILE" |
       grep -A 20 'tgfx::' |
@@ -137,7 +101,5 @@ if [ -f "../traces/time_profile_${TIMESTAMP}.xml" ]; then
 fi
 
 echo ""
-echo "性能摘要预览:"
-echo "================="
 cat "$SUMMARY_OUTPUT"
 echo ""
