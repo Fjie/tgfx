@@ -16,12 +16,12 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "tgfx/core/Canvas.h"
-#include "tgfx/core/Surface.h"
-#include "tgfx/core/Recorder.h"
-#include "tgfx/core/Clock.h"
-#include "utils/TestUtils.h"
 #include <ctime>
+#include "tgfx/core/Canvas.h"
+#include "tgfx/core/Clock.h"
+#include "tgfx/core/Recorder.h"
+#include "tgfx/core/Surface.h"
+#include "utils/TestUtils.h"
 
 namespace tgfx {
 
@@ -40,26 +40,26 @@ TGFX_TEST(RenderPerformanceTest, SingleRectRender) {
   // 创建随机数生成器，使用固定种子以便比较结果
   std::srand(12345);
 
-  const int rectCount = 100 * 10000; // 一百万个图形
+  const int rectCount = 100 * 10000;  // 一百万个图形
   std::vector<Rect> rects;
   std::vector<Paint> paints;
 
   // 生成随机矩形和颜色
+  const float rectWidth = 50.0f;   // 固定矩形宽度
+  const float rectHeight = 50.0f;  // 固定矩形高度
+
   for (int i = 0; i < rectCount; ++i) {
     float x = static_cast<float>(std::rand() % width);
     float y = static_cast<float>(std::rand() % height);
-    float w = static_cast<float>(std::rand() % 100 + 20);
-    float h = static_cast<float>(std::rand() % 100 + 20);
 
-    rects.push_back(Rect::MakeXYWH(x, y, w, h));
+    rects.push_back(Rect::MakeXYWH(x, y, rectWidth, rectHeight));
 
     float r = static_cast<float>(std::rand() % 255) / 255.0f;
     float g = static_cast<float>(std::rand() % 255) / 255.0f;
     float b = static_cast<float>(std::rand() % 255) / 255.0f;
-    float a = static_cast<float>(std::rand() % 200 + 55) / 255.0f; // 确保不完全透明
 
     Paint paint;
-    paint.setColor(Color{r, g, b, a});
+    paint.setColor(Color{r, g, b, 1.0f});  // 完全不透明
     paints.push_back(paint);
   }
 
@@ -68,20 +68,20 @@ TGFX_TEST(RenderPerformanceTest, SingleRectRender) {
 
   // 绘制所有矩形
   for (size_t i = 0; i < static_cast<size_t>(rectCount); ++i) {
-    canvas->drawRect(rects[i], paints[i]);
+    const float radius = rects[i].width() * 0.25f;
+    canvas->drawRoundRect(rects[i], radius, radius, paints[i]);
   }
 
   // 完成渲染并测量时间
   context->flush();
   auto endTime = Clock::Now();
-  auto elapsedTime = (endTime - startTime) / 1000; // 转换为毫秒
+  auto elapsedTime = (endTime - startTime) / 1000;  // 转换为毫秒
 
-  std::cout << "SingleRectRender: Rendered " << rectCount
-            << " rectangles in " << elapsedTime << " ms" << std::endl;
+  std::cout << "SingleRectRender: Rendered " << rectCount << " rectangles in " << elapsedTime
+            << " ms" << std::endl;
 
   // 保存结果，方便查看
   Baseline::Compare(surface, "RenderPerformanceTest/SingleRectRender");
 }
-
 
 }  // namespace tgfx
