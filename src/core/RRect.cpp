@@ -38,7 +38,10 @@ void RRect::setOval(const Rect& oval) {
 }
 
 void RRect::scale(float scaleX, float scaleY) {
-  rect.scale(scaleX, scaleY);
+  rect.left *= scaleX;
+  rect.right *= scaleX;
+  rect.top *= scaleY;
+  rect.bottom *= scaleY;
   radii.x *= scaleX;
   radii.y *= scaleY;
 }

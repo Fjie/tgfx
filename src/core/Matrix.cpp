@@ -300,16 +300,32 @@ bool Matrix::invertNonIdentity(Matrix* inverse) const {
 }
 
 void Matrix::mapPoints(Point dst[], const Point src[], int count) const {
-  auto tx = values[TRANS_X];
-  auto ty = values[TRANS_Y];
-  auto sx = values[SCALE_X];
-  auto sy = values[SCALE_Y];
-  auto kx = values[SKEW_X];
-  auto ky = values[SKEW_Y];
+  if (count <= 0) {
+    return;
+  }
+  
+  // Cache matrix values to minimize member access in the loop
+  const float tx = values[TRANS_X];
+  const float ty = values[TRANS_Y];
+  const float sx = values[SCALE_X];
+  const float sy = values[SCALE_Y]; 
+  const float kx = values[SKEW_X];
+  const float ky = values[SKEW_Y];
+  
+  // Special case for common case of 1 point
+  if (count == 1) {
+    const float x = src[0].x;
+    const float y = src[0].y;
+    dst[0].x = x * sx + y * kx + tx;
+    dst[0].y = x * ky + y * sy + ty;
+    return;
+  }
+  
   for (int i = 0; i < count; i++) {
-    auto x = src[i].x * sx + src[i].y * kx + tx;
-    auto y = src[i].x * ky + src[i].y * sy + ty;
-    dst[i].set(x, y);
+    const float x = src[i].x;
+    const float y = src[i].y;
+    dst[i].x = x * sx + y * kx + tx;
+    dst[i].y = x * ky + y * sy + ty;
   }
 }
 
