@@ -5,6 +5,8 @@ set -e
 
 # 默认测试次数
 TEST_RUNS=10
+# 默认热点函数数量
+TOP_HOTSPOTS=50
 
 # 解析命令行参数
 while getopts ":r:" opt; do
@@ -55,12 +57,12 @@ do
    echo "执行第 $i/$TEST_RUNS 次测试..."
    TEST_OUTPUT=$(./TGFXUnitTest --gtest_filter=RenderPerformanceTest.SingleRectRender 2>&1)
    RENDERING_TIME=$(echo "$TEST_OUTPUT" | grep "SingleRectRender: Rendered" | grep -o '[0-9]* ms' | cut -d' ' -f1)
-   
+
    if [ -z "$RENDERING_TIME" ]; then
      echo "警告：无法获取渲染时间，使用 0"
      RENDERING_TIME=0
    fi
-   
+
    echo "  - 渲染耗时: $RENDERING_TIME ms"
    TIMES+=($RENDERING_TIME)
    SUM=$((SUM + RENDERING_TIME))
@@ -127,7 +129,7 @@ if [ -f "../traces/time_profile_${TIMESTAMP}.xml" ]; then
       grep 'name=' |
       sed 's/.*name="\([^"]*\)".*/\1/' |
       grep "tgfx::" |
-      sort | uniq -c | sort -nr | head -10 |
+      sort | uniq -c | sort -nr | head -$TOP_HOTSPOTS |
       awk '{printf "  • %-60s %5d 次调用\n", $2, $1}'
   } > "$SUMMARY_OUTPUT"
 
@@ -142,7 +144,7 @@ if [ -f "../traces/time_profile_${TIMESTAMP}.xml" ]; then
     echo "平均渲染耗时: $AVG ms (标准差: $STD_DEV, $TEST_RUNS 次测试)"
     echo "各次测试耗时: ${TIMES[*]} ms"
     echo ""
-    
+
     echo "2. 测试程序输出 (带trace的运行):"
     echo "------------------------------------------------------"
     echo "$TRACE_TEST_OUTPUT"
