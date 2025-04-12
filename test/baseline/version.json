@@ -241,8 +241,5 @@
     "TextAlignWidth0Height0": "d868e738",
     "TextAlignWidth1Height10": "d868e738",
     "TruncateTextLineTest": "d868e738"
-  },
-  "RenderPerformanceTest": {
-    "SingleRectRender": "ec497b536ffb5ef53d6b8d67c031e903"
   }
 }
