@@ -17,49 +17,132 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <ctime>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include "tgfx/core/Canvas.h"
 #include "tgfx/core/Clock.h"
 #include "tgfx/core/Recorder.h"
 #include "tgfx/core/Surface.h"
 #include "utils/TestUtils.h"
 
+using json = nlohmann::json;
+
 namespace tgfx {
 
-TGFX_TEST(RenderPerformanceTest, SingleRectRender) {
-  ContextScope scope;
-  auto context = scope.getContext();
-  ASSERT_TRUE(context != nullptr);
+// 用于存储矩形和颜色信息的结构
+struct RectData {
+  float x;
+  float y;
+  float width;
+  float height;
+  float radius;
+  float r;
+  float g;
+  float b;
+  float a;
+};
 
-  // 创建一个2048x2048的画布
-  int width = 2048;
-  int height = 2048;
-  auto surface = Surface::Make(context, width, height);
-  auto canvas = surface->getCanvas();
-  canvas->clear(Color::White());
-
+// 生成性能测试所需的随机数据并保存到JSON文件
+TGFX_TEST(RenderPerformanceTest, GenerateTestData) {
   // 创建随机数生成器，使用固定种子以便比较结果
   std::srand(12345);
 
-  const int rectCount = 5 * 10000;
-  std::vector<Rect> rects;
-  std::vector<Paint> paints;
-
-  // 生成随机矩形和颜色
+  // 画布尺寸和矩形数量
+  int width = 2048;
+  int height = 2048;
+  const int rectCount = 10 * 10000;
   const float rectWidth = 50.0f;   // 固定矩形宽度
   const float rectHeight = 50.0f;  // 固定矩形高度
 
+  json testData;
+  testData["width"] = width;
+  testData["height"] = height;
+  testData["rectCount"] = rectCount;
+
+  json rectangles = json::array();
+
+  // 生成随机矩形和颜色
   for (int i = 0; i < rectCount; ++i) {
     float x = static_cast<float>(std::rand() % width);
     float y = static_cast<float>(std::rand() % height);
-
-    rects.push_back(Rect::MakeXYWH(x, y, rectWidth, rectHeight));
+    float radius = rectWidth * 0.25f;
 
     float r = static_cast<float>(std::rand() % 255) / 255.0f;
     float g = static_cast<float>(std::rand() % 255) / 255.0f;
     float b = static_cast<float>(std::rand() % 255) / 255.0f;
 
+    json rect;
+    rect["x"] = x;
+    rect["y"] = y;
+    rect["width"] = rectWidth;
+    rect["height"] = rectHeight;
+    rect["radius"] = radius;
+    rect["r"] = r;
+    rect["g"] = g;
+    rect["b"] = b;
+    rect["a"] = 1.0f;
+
+    rectangles.push_back(rect);
+  }
+
+  testData["rectangles"] = rectangles;
+
+  // 保存到JSON文件
+  std::string filePath = ProjectPath::Absolute("./test/test_data.json");
+  std::ofstream outputFile(filePath);
+  if (outputFile.is_open()) {
+    outputFile << testData.dump(2);
+    outputFile.close();
+    std::cout << "Generated test data saved to: " << filePath << std::endl;
+  } else {
+    std::cerr << "Failed to open file for writing: " << filePath << std::endl;
+  }
+}
+
+// 从JSON文件加载测试数据并执行渲染性能测试
+TGFX_TEST(RenderPerformanceTest, SingleRectRender) {
+  ContextScope scope;
+  auto context = scope.getContext();
+  ASSERT_TRUE(context != nullptr);
+
+  // 从JSON文件加载测试数据
+  std::string filePath = ProjectPath::Absolute("./test/test_data.json");
+  std::ifstream inputFile(filePath);
+  ASSERT_TRUE(inputFile.is_open()) << "Failed to open test data file: " << filePath;
+
+  json testData = json::parse(inputFile);
+  inputFile.close();
+
+  int width = testData["width"];
+  int height = testData["height"];
+  int rectCount = testData["rectCount"];
+
+  auto surface = Surface::Make(context, width, height);
+  auto canvas = surface->getCanvas();
+  canvas->clear(Color::White());
+
+  std::vector<Rect> rects;
+  std::vector<Paint> paints;
+  std::vector<float> radii;
+
+  // 从JSON解析矩形和颜色数据
+  for (const auto& rectJson : testData["rectangles"]) {
+    float x = rectJson["x"];
+    float y = rectJson["y"];
+    float rectWidth = rectJson["width"];
+    float rectHeight = rectJson["height"];
+    float radius = rectJson["radius"];
+
+    rects.push_back(Rect::MakeXYWH(x, y, rectWidth, rectHeight));
+    radii.push_back(radius);
+
+    float r = rectJson["r"];
+    float g = rectJson["g"];
+    float b = rectJson["b"];
+    float a = rectJson["a"];
+
     Paint paint;
-    paint.setColor(Color{r, g, b, 1.0f});  // 完全不透明
+    paint.setColor(Color{r, g, b, a});
     paints.push_back(paint);
   }
 
@@ -67,9 +150,8 @@ TGFX_TEST(RenderPerformanceTest, SingleRectRender) {
   auto startTime = Clock::Now();
 
   // 绘制所有矩形
-  for (size_t i = 0; i < static_cast<size_t>(rectCount); ++i) {
-    const float radius = rects[i].width() * 0.25f;
-    canvas->drawRoundRect(rects[i], radius, radius, paints[i]);
+  for (size_t i = 0; i < rects.size(); ++i) {
+    canvas->drawRoundRect(rects[i], radii[i], radii[i], paints[i]);
   }
 
   // 完成渲染并测量时间
