@@ -113,12 +113,6 @@ if [ -f "../traces/time_profile_${TIMESTAMP}.xml" ]; then
     echo "时间戳：$(date)"
     echo ""
 
-    echo "测试详情："
-    for (( i=0; i<${#TIMES[@]}; i++ )); do
-      echo "  - 测试 $((i+1)): ${TIMES[i]} ms"
-    done
-    echo ""
-
     echo "热点调用栈分析："
     echo "------------------------------------------------------"
     # 提取最热点的调用栈（包含tgfx的函数）
