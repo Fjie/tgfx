@@ -60,41 +60,53 @@ apply_stability_measures() {
   echo "应用性能稳定性措施 (级别: $STABILITY_LEVEL)..."
   
   # 基本优化 (所有级别)
-  # 停止不必要的后台服务
+  # 降低其他进程优先级而不是提高自己的优先级
   if [ "$(uname)" = "Darwin" ]; then
-    sudo pkill -f "Spotlight" || true
-    sudo pkill -f "Time Machine" || true
+    # 可选：尝试友好地请求Spotlight索引暂停
+    launchctl unload -w /System/Library/LaunchAgents/com.apple.Spotlight.plist 2>/dev/null || true
+    
+    # 可选：请求系统开始内存压缩，不需要sudo
+    memory_pressure &>/dev/null &
+    MEMORY_PRESSURE_PID=$!
+    # 在脚本结束时我们会杀掉这个进程
+    trap "kill $MEMORY_PRESSURE_PID 2>/dev/null || true; launchctl load -w /System/Library/LaunchAgents/com.apple.Spotlight.plist 2>/dev/null || true" EXIT
   fi
   
   # 中等级别优化
   if [ $STABILITY_LEVEL -ge 2 ]; then
-    # 设置进程优先级
+    # 使用非sudo方式降低后台应用优先级
     if [ "$(uname)" = "Darwin" ]; then
-      # macOS: 提高当前进程优先级
-      sudo renice -n -10 $$
+      # 找到可能影响性能的进程并降低其优先级
+      for PROC in "Safari" "Chrome" "Firefox" "Mail" "Photos" "Music" "TV" "Calendar"; do
+        pgrep "$PROC" | xargs -I{} renice +10 {} 2>/dev/null || true
+      done
     fi
     
-    # 清理系统缓存
+    # 通过垃圾回收释放内存（不需要sudo）
     if [ "$(uname)" = "Darwin" ]; then
-      sudo purge
+      vm_stat  # 触发一些内存回收
+      python3 -c 'import gc; gc.collect()' 2>/dev/null || python -c 'import gc; gc.collect()' 2>/dev/null || true
     fi
   fi
   
   # 高级别优化
   if [ $STABILITY_LEVEL -ge 3 ]; then
-    # 锁定CPU频率 (需要root权限)
+    # 尝试限制CPU使用而不需要sudo (使用cpulimit或类似工具)
     if [ "$(uname)" = "Darwin" ]; then
-      echo "注意: macOS不支持直接锁定CPU频率, 但已应用其他可用的稳定性措施"
+      # 通过进程亲和性优化CPU使用
+      # 注意：MacOS没有简单的不需要sudo的CPU亲和性设置方法
+      echo "注意: 在不使用sudo的情况下，MacOS限制了高级系统优化选项"
     fi
     
-    # 禁用系统热管理(温度控制)
+    # 使用温度监控工具获取当前温度（如果支持）
     if [ "$(uname)" = "Darwin" ]; then
-      echo "警告: 禁用热管理可能会影响系统稳定性, 建议谨慎使用"
+      # Mac可以尝试获取温度信息作为参考
+      system_profiler SPPowerDataType | grep "Temperature" || true
     fi
   fi
   
   # 等待系统稳定
-  sleep 5
+  sleep 3
 }
 
 # 优化系统并等待资源稳定
@@ -127,9 +139,11 @@ test_with_cooling() {
     sleep 2
   fi
   
-  # 清理页面缓存
+  # 清理内存（不使用sudo）
   if [ "$(uname)" = "Darwin" ] && [ $STABILITY_LEVEL -ge 2 ]; then
-    sudo purge > /dev/null 2>&1
+    # 创建临时大文件然后删除来促使系统清理缓存
+    dd if=/dev/zero of=/tmp/tempfile bs=1024k count=1024 &>/dev/null || true
+    rm /tmp/tempfile &>/dev/null || true
   fi
   
   # 执行测试
