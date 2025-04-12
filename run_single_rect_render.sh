@@ -42,11 +42,11 @@ cd build
 
 # 使用CMake配置项目，启用测试并启用调试符号
 echo "配置项目..."
-cmake -DTGFX_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+cmake -DTGFX_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo .. > /dev/null
 
 # 构建项目
 echo "构建项目..."
-cmake --build . --target TGFXUnitTest -j $(sysctl -n hw.ncpu)
+cmake --build . --target TGFXUnitTest -j $(sysctl -n hw.ncpu) > /dev/null
 
 # 创建traces目录
 mkdir -p ../traces
@@ -84,7 +84,7 @@ apply_stability_measures() {
     
     # 通过垃圾回收释放内存（不需要sudo）
     if [ "$(uname)" = "Darwin" ]; then
-      vm_stat  # 触发一些内存回收
+      vm_stat > /dev/null  # 触发一些内存回收
       python3 -c 'import gc; gc.collect()' 2>/dev/null || python -c 'import gc; gc.collect()' 2>/dev/null || true
     fi
   fi
@@ -101,12 +101,42 @@ apply_stability_measures() {
     # 使用温度监控工具获取当前温度（如果支持）
     if [ "$(uname)" = "Darwin" ]; then
       # Mac可以尝试获取温度信息作为参考
-      system_profiler SPPowerDataType | grep "Temperature" || true
+      system_profiler SPPowerDataType | grep "Temperature" > /dev/null || true
     fi
   fi
   
   # 等待系统稳定
   sleep 3
+}
+
+# 检查并显示错误信息
+check_for_errors() {
+  local test_output=$1
+  
+  # 检查是否有shader编译错误或其他错误
+  if echo "$test_output" | grep -q "ERROR:" || echo "$test_output" | grep -q "Could not compile shader"; then
+    # 找到并显示错误信息
+    echo "检测到错误:"
+    # 先尝试提取shader错误
+    SHADER_ERRORS=$(echo "$test_output" | grep -A 5 "Could not compile shader" | grep -E "Could not compile shader|ERROR:")
+    if [ -n "$SHADER_ERRORS" ]; then
+      echo "$SHADER_ERRORS"
+    else
+      # 如果没有找到shader错误，尝试显示任何ERROR行
+      echo "$test_output" | grep -A 2 "ERROR:"
+    fi
+    
+    return 1
+  fi
+  
+  return 0
+}
+
+# 运行测试并捕获所有输出
+run_test() {
+  # 使用tee将输出同时发送到stdout和捕获到变量
+  TEST_OUTPUT=$("$@" 2>&1)
+  echo "$TEST_OUTPUT"
 }
 
 # 优化系统并等待资源稳定
@@ -118,7 +148,13 @@ if [ $WARM_UP_RUNS -gt 0 ]; then
   for (( i=1; i<=$WARM_UP_RUNS; i++ ))
   do
     echo "预热运行 $i/$WARM_UP_RUNS..."
-    ./TGFXUnitTest --gtest_filter=RenderPerformanceTest.SingleRectRender --gtest_brief=1 > /dev/null 2>&1
+    WARM_OUTPUT=$(run_test ./TGFXUnitTest --gtest_filter=RenderPerformanceTest.SingleRectRender)
+    
+    # 检查是否有错误
+    if ! check_for_errors "$WARM_OUTPUT"; then
+      echo "预热过程中检测到错误，退出测试"
+      exit 1
+    fi
   done
   echo "预热完成"
 fi
@@ -146,20 +182,35 @@ test_with_cooling() {
     rm /tmp/tempfile &>/dev/null || true
   fi
   
-  # 执行测试
-  TEST_OUTPUT=$(./TGFXUnitTest --gtest_filter=RenderPerformanceTest.SingleRectRender 2>&1)
+  # 执行测试，直接将结果输出到stdout和stderr
+  TEST_OUTPUT=$(run_test ./TGFXUnitTest --gtest_filter=RenderPerformanceTest.SingleRectRender)
+  
+  # 检查是否有错误输出
+  if ! check_for_errors "$TEST_OUTPUT"; then
+    echo "测试失败，原因见上述错误"
+    return 1
+  fi
+  
+  # 提取渲染时间并返回
+  RENDERING_TIME=$(echo "$TEST_OUTPUT" | grep "SingleRectRender: Rendered" | grep -o '[0-9]* ms' | cut -d' ' -f1)
+  echo "$RENDERING_TIME"
   
   # 在测试后短暂等待，允许系统恢复稳定状态
   sleep 1
   
-  echo "$TEST_OUTPUT"
+  return 0
 }
 
 for (( i=1; i<=$TEST_RUNS; i++ ))
 do
    echo "执行第 $i/$TEST_RUNS 次测试..."
-   TEST_OUTPUT=$(test_with_cooling $i)
-   RENDERING_TIME=$(echo "$TEST_OUTPUT" | grep "SingleRectRender: Rendered" | grep -o '[0-9]* ms' | cut -d' ' -f1)
+   RENDERING_TIME=$(test_with_cooling $i)
+   
+   # 检查是否有错误
+   if [ $? -ne 0 ]; then
+     echo "测试过程中检测到错误，退出测试"
+     exit 1
+   fi
 
    if [ -z "$RENDERING_TIME" ]; then
      echo "警告：无法获取渲染时间，使用 0"
@@ -252,7 +303,15 @@ echo "- 四分位区间: Q1=$Q1, Q3=$Q3, IQR=$IQR"
 
 # 第二阶段：执行一次带trace的测试用于性能分析
 echo "运行单次测试用于性能分析（带trace工具）..."
-xcrun xctrace record --template "Time Profiler" --output "$TRACE_FILE" --launch -- ./TGFXUnitTest --gtest_filter=RenderPerformanceTest.SingleRectRender --gtest_brief=1
+
+TRACE_CMD="xcrun xctrace record --template \"Time Profiler\" --output \"$TRACE_FILE\" --launch -- ./TGFXUnitTest --gtest_filter=RenderPerformanceTest.SingleRectRender"
+TRACE_TEST_OUTPUT=$(eval "$TRACE_CMD" 2>&1)
+
+# 检查是否有错误
+if ! check_for_errors "$TRACE_TEST_OUTPUT"; then
+  echo "Trace测试过程中检测到错误"
+  exit 1
+fi
 
 echo "详细trace文件已保存到 $TRACE_FILE"
 
@@ -260,10 +319,9 @@ echo "详细trace文件已保存到 $TRACE_FILE"
 echo "从trace文件中提取性能数据..."
 
 # 导出调用树信息
-xcrun xctrace export --input "$TRACE_FILE" --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' --output ../traces/time_profile_${TIMESTAMP}.xml
+xcrun xctrace export --input "$TRACE_FILE" --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' --output ../traces/time_profile_${TIMESTAMP}.xml > /dev/null 2>&1
 
 # 提取测试输出信息（这次是来自trace运行的数据，作为参考）
-TRACE_TEST_OUTPUT=$(./TGFXUnitTest --gtest_filter=RenderPerformanceTest.SingleRectRender 2>&1)
 TRACE_RENDERING_TIME=$(echo "$TRACE_TEST_OUTPUT" | grep "SingleRectRender: Rendered" | grep -o '[0-9]* ms' | cut -d' ' -f1)
 
 # 使用AWK提取关键性能数据并生成摘要报告
