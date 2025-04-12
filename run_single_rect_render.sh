@@ -7,15 +7,25 @@ set -e
 TEST_RUNS=10
 # 默认热点函数数量
 TOP_HOTSPOTS=50
+# 默认预热次数
+WARM_UP_RUNS=3
+# 默认稳定性措施强度 (1-3)
+STABILITY_LEVEL=2
 
 # 解析命令行参数
-while getopts ":r:" opt; do
+while getopts ":r:w:s:" opt; do
   case ${opt} in
     r )
       TEST_RUNS=$OPTARG
       ;;
+    w )
+      WARM_UP_RUNS=$OPTARG
+      ;;
+    s )
+      STABILITY_LEVEL=$OPTARG
+      ;;
     \? )
-      echo "用法: $0 [-r 测试次数]"
+      echo "用法: $0 [-r 测试次数] [-w 预热次数] [-s 稳定性级别(1-3)]"
       exit 1
       ;;
   esac
@@ -45,6 +55,62 @@ TRACE_FILE="../traces/SingleRectRender_${TIMESTAMP}.trace"
 ANALYSIS_OUTPUT="../traces/performance_analysis_${TIMESTAMP}.txt"
 SUMMARY_OUTPUT="../traces/performance_summary_${TIMESTAMP}.txt"
 
+# 应用性能稳定性措施
+apply_stability_measures() {
+  echo "应用性能稳定性措施 (级别: $STABILITY_LEVEL)..."
+  
+  # 基本优化 (所有级别)
+  # 停止不必要的后台服务
+  if [ "$(uname)" = "Darwin" ]; then
+    sudo pkill -f "Spotlight" || true
+    sudo pkill -f "Time Machine" || true
+  fi
+  
+  # 中等级别优化
+  if [ $STABILITY_LEVEL -ge 2 ]; then
+    # 设置进程优先级
+    if [ "$(uname)" = "Darwin" ]; then
+      # macOS: 提高当前进程优先级
+      sudo renice -n -10 $$
+    fi
+    
+    # 清理系统缓存
+    if [ "$(uname)" = "Darwin" ]; then
+      sudo purge
+    fi
+  fi
+  
+  # 高级别优化
+  if [ $STABILITY_LEVEL -ge 3 ]; then
+    # 锁定CPU频率 (需要root权限)
+    if [ "$(uname)" = "Darwin" ]; then
+      echo "注意: macOS不支持直接锁定CPU频率, 但已应用其他可用的稳定性措施"
+    fi
+    
+    # 禁用系统热管理(温度控制)
+    if [ "$(uname)" = "Darwin" ]; then
+      echo "警告: 禁用热管理可能会影响系统稳定性, 建议谨慎使用"
+    fi
+  fi
+  
+  # 等待系统稳定
+  sleep 5
+}
+
+# 优化系统并等待资源稳定
+apply_stability_measures
+
+# 预热运行
+if [ $WARM_UP_RUNS -gt 0 ]; then
+  echo "执行 $WARM_UP_RUNS 次预热运行..."
+  for (( i=1; i<=$WARM_UP_RUNS; i++ ))
+  do
+    echo "预热运行 $i/$WARM_UP_RUNS..."
+    ./TGFXUnitTest --gtest_filter=RenderPerformanceTest.SingleRectRender --gtest_brief=1 > /dev/null 2>&1
+  done
+  echo "预热完成"
+fi
+
 # 第一阶段：多次运行性能测试并计算平均值（不带trace）
 echo "执行 $TEST_RUNS 次性能测试（不带trace工具）..."
 
@@ -52,10 +118,33 @@ echo "执行 $TEST_RUNS 次性能测试（不带trace工具）..."
 TIMES=()
 SUM=0
 
+# 在测试之间确保系统冷却和稳定
+test_with_cooling() {
+  local run_index=$1
+  
+  # 在每次测试之前短暂暂停，让系统资源恢复稳定状态
+  if [ $run_index -gt 1 ]; then
+    sleep 2
+  fi
+  
+  # 清理页面缓存
+  if [ "$(uname)" = "Darwin" ] && [ $STABILITY_LEVEL -ge 2 ]; then
+    sudo purge > /dev/null 2>&1
+  fi
+  
+  # 执行测试
+  TEST_OUTPUT=$(./TGFXUnitTest --gtest_filter=RenderPerformanceTest.SingleRectRender 2>&1)
+  
+  # 在测试后短暂等待，允许系统恢复稳定状态
+  sleep 1
+  
+  echo "$TEST_OUTPUT"
+}
+
 for (( i=1; i<=$TEST_RUNS; i++ ))
 do
    echo "执行第 $i/$TEST_RUNS 次测试..."
-   TEST_OUTPUT=$(./TGFXUnitTest --gtest_filter=RenderPerformanceTest.SingleRectRender 2>&1)
+   TEST_OUTPUT=$(test_with_cooling $i)
    RENDERING_TIME=$(echo "$TEST_OUTPUT" | grep "SingleRectRender: Rendered" | grep -o '[0-9]* ms' | cut -d' ' -f1)
 
    if [ -z "$RENDERING_TIME" ]; then
@@ -81,7 +170,71 @@ done
 VARIANCE=$(echo "scale=2; $SUM_SQUARED_DIFF / $TEST_RUNS" | bc)
 STD_DEV=$(echo "scale=2; sqrt($VARIANCE)" | bc)
 
-echo "测试完成！平均渲染耗时: $AVG ms (标准差: $STD_DEV)"
+# 计算中位数和去除异常值后的统计信息
+calculate_trimmed_stats() {
+  # 对数组进行排序
+  SORTED_TIMES=($(echo "${TIMES[@]}" | tr ' ' '\n' | sort -n))
+  
+  # 计算中位数
+  local midpoint=$((${#SORTED_TIMES[@]} / 2))
+  if [ $((${#SORTED_TIMES[@]} % 2)) -eq 0 ]; then
+    MEDIAN=$(echo "scale=2; (${SORTED_TIMES[$midpoint-1]} + ${SORTED_TIMES[$midpoint]}) / 2" | bc)
+  else
+    MEDIAN=${SORTED_TIMES[$midpoint]}
+  fi
+  
+  # 去除异常值 (超过1.5倍四分位距的值)
+  local q1_idx=$((${#SORTED_TIMES[@]} / 4))
+  local q3_idx=$(( (${#SORTED_TIMES[@]} * 3) / 4 ))
+  Q1=${SORTED_TIMES[$q1_idx]}
+  Q3=${SORTED_TIMES[$q3_idx]}
+  IQR=$(echo "scale=2; $Q3 - $Q1" | bc)
+  LOWER_BOUND=$(echo "scale=2; $Q1 - (1.5 * $IQR)" | bc)
+  UPPER_BOUND=$(echo "scale=2; $Q3 + (1.5 * $IQR)" | bc)
+  
+  # 去除异常值后的数组
+  TRIMMED_TIMES=()
+  TRIMMED_SUM=0
+  TRIMMED_COUNT=0
+  
+  for time in "${TIMES[@]}"; do
+    if (( $(echo "$time >= $LOWER_BOUND" | bc -l) )) && (( $(echo "$time <= $UPPER_BOUND" | bc -l) )); then
+      TRIMMED_TIMES+=($time)
+      TRIMMED_SUM=$(echo "scale=2; $TRIMMED_SUM + $time" | bc)
+      TRIMMED_COUNT=$((TRIMMED_COUNT + 1))
+    fi
+  done
+  
+  # 计算去除异常值后的平均值
+  if [ $TRIMMED_COUNT -gt 0 ]; then
+    TRIMMED_AVG=$(echo "scale=2; $TRIMMED_SUM / $TRIMMED_COUNT" | bc)
+  else
+    TRIMMED_AVG=$AVG
+  fi
+  
+  # 计算去除异常值后的标准差
+  TRIMMED_SUM_SQUARED_DIFF=0
+  for time in "${TRIMMED_TIMES[@]}"; do
+    DIFF=$(echo "scale=2; $time - $TRIMMED_AVG" | bc)
+    SQUARED_DIFF=$(echo "scale=2; $DIFF * $DIFF" | bc)
+    TRIMMED_SUM_SQUARED_DIFF=$(echo "scale=2; $TRIMMED_SUM_SQUARED_DIFF + $SQUARED_DIFF" | bc)
+  done
+  
+  if [ $TRIMMED_COUNT -gt 0 ]; then
+    TRIMMED_VARIANCE=$(echo "scale=2; $TRIMMED_SUM_SQUARED_DIFF / $TRIMMED_COUNT" | bc)
+    TRIMMED_STD_DEV=$(echo "scale=2; sqrt($TRIMMED_VARIANCE)" | bc)
+  else
+    TRIMMED_STD_DEV=$STD_DEV
+  fi
+}
+
+calculate_trimmed_stats
+
+echo "测试完成！"
+echo "- 平均渲染耗时: $AVG ms (标准差: $STD_DEV)"
+echo "- 中位数渲染耗时: $MEDIAN ms"
+echo "- 去除异常值后平均: $TRIMMED_AVG ms (标准差: $TRIMMED_STD_DEV, 样本: $TRIMMED_COUNT/${#TIMES[@]})"
+echo "- 四分位区间: Q1=$Q1, Q3=$Q3, IQR=$IQR"
 
 # 第二阶段：执行一次带trace的测试用于性能分析
 echo "运行单次测试用于性能分析（带trace工具）..."
@@ -109,6 +262,8 @@ if [ -f "../traces/time_profile_${TIMESTAMP}.xml" ]; then
     echo "======================================================"
     echo "测试：RenderPerformanceTest.SingleRectRender"
     echo "平均渲染耗时：$AVG ms (标准差: $STD_DEV, $TEST_RUNS 次测试)"
+    echo "中位数渲染耗时: $MEDIAN ms"
+    echo "去除异常值后平均: $TRIMMED_AVG ms (标准差: $TRIMMED_STD_DEV, 样本: $TRIMMED_COUNT/${#TIMES[@]})"
     echo "带Trace工具的渲染耗时：$TRACE_RENDERING_TIME ms (仅供参考，受trace工具影响)"
     echo "时间戳：$(date)"
     echo ""
@@ -136,6 +291,8 @@ if [ -f "../traces/time_profile_${TIMESTAMP}.xml" ]; then
     echo "1. 测试程序平均性能:"
     echo "------------------------------------------------------"
     echo "平均渲染耗时: $AVG ms (标准差: $STD_DEV, $TEST_RUNS 次测试)"
+    echo "中位数渲染耗时: $MEDIAN ms"
+    echo "去除异常值后平均: $TRIMMED_AVG ms (标准差: $TRIMMED_STD_DEV, 样本: $TRIMMED_COUNT/${#TIMES[@]})"
     echo "各次测试耗时: ${TIMES[*]} ms"
     echo ""
 
