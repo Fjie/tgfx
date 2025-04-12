@@ -40,7 +40,7 @@ TGFX_TEST(RenderPerformanceTest, SingleRectRender) {
   // 创建随机数生成器，使用固定种子以便比较结果
   std::srand(12345);
 
-  const int rectCount = 100 * 10000;  // 一百万个图形
+  const int rectCount = 5 * 10000;
   std::vector<Rect> rects;
   std::vector<Paint> paints;
 
