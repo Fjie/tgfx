@@ -162,8 +162,9 @@ TGFX_TEST(RenderPerformanceTest, SingleRectRender) {
   std::cout << "SingleRectRender: Rendered " << rectCount << " rectangles in " << elapsedTime
             << " ms" << std::endl;
 
-  // 保存结果，方便查看
-  Baseline::Compare(surface, "RenderPerformanceTest/SingleRectRender");
+  EXPECT_TRUE(Baseline::Compare(surface, "RenderPerformanceTest/SingleRectRender"));
+
+
 }
 
 }  // namespace tgfx
